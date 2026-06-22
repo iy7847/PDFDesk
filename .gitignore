@@ -1,0 +1,10 @@
+node_modules/
+.DS_Store
+.agents/
+*.log
+implementation_plan.md
+STATUS.md
+app_old.js
+test_input.pdf
+test_nav.js
+test_nav2.cjs

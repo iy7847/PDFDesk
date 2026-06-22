@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="utf-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <title>PDFDesk - 전문가를 위한 안전한 PDF 솔루션</title>
+    <meta name="description"
+        content="서버 전송 없이 브라우저에서 직접 처리하는 안전하고 빠른 실무용 올인원 PDF 유틸리티. 용지 리사이징, 마스킹(Flatten), 분할, 병합, 워터마크 기능을 제공합니다.">
+    <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+
+    <link rel="stylesheet" href="style.css?v=1.0.95">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+        rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+
+    <!-- PDF Libraries (Async/Defer Loading) -->
+    <!-- PDF.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" defer></script>
+    <!-- pdf-lib CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js" defer></script>
+    <!-- JSZip CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" defer></script>
+
+    <!-- JS (Cache-Busting 적용) -->
+    <script src="js/constants.js?v=1.0.95" defer></script>
+    <script src="js/sharedViewer.js?v=1.0.95" defer></script>
+    <script src="js/progressModal.js?v=1.0.95" defer></script>
+    <script src="js/pagePreviewModal.js?v=1.0.95" defer></script>
+    <script src="js/workspaceTool.js?v=1.0.95" defer></script>
+    <script src="js/resizeWorkspace.js?v=1.0.95" defer></script>
+    <script src="js/splitWorkspace.js?v=1.0.95" defer></script>
+    <script src="js/maskingWorkspace.js?v=1.0.95" defer></script>
+    <script src="js/watermarkWorkspace.js?v=1.0.95" defer></script>
+    <script src="js/app.js?v=1.0.95" defer></script>
+</head>
+
+<body class="bg-surface-bright text-on-surface font-body-md antialiased pb-24 md:pb-0 pt-header-height">
+    <!-- TopAppBar -->
+    <header
+        class="fixed top-0 w-full z-50 bg-surface-bright/95 dark:bg-surface-bright/95 border-b border-outline-variant backdrop-blur-md">
+        <div
+            class="flex items-center justify-center h-header-height px-margin-mobile md:px-gutter max-w-container-max mx-auto">
+            <a id="logo-link"
+                class="flex items-center gap-2 font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed-dim tracking-tight"
+                href="#">
+                <span class="material-symbols-outlined text-[32px]"
+                    style="font-variation-settings: 'FILL' 1;">description</span>
+                PDFDesk
+            </a>
+        </div>
+    </header>
+
+    <!-- Landing View -->
+    <div id="landing-view" class="block">
+
+        <!-- Top Ad Placeholder -->
+        <div class="w-full bg-surface-container-low py-4 border-b border-outline-variant">
+            <div class="max-w-container-max mx-auto px-margin-mobile flex justify-center">
+                <div
+                    class="w-full max-w-3xl h-20 border border-dashed border-outline-variant rounded-lg flex items-center justify-center text-on-surface-variant font-body-sm bg-surface-bright">
+                    [상단 광고 영역]
+                </div>
+            </div>
+        </div>
+
+        <!-- Hero Section -->
+        <section
+            class="max-w-container-max mx-auto px-margin-mobile py-section-gap flex flex-col items-center text-center gap-6">
+            <div
+                class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary font-label-caps text-label-caps">
+                <span class="material-symbols-outlined text-sm">shield</span>
+                보안을 최우선으로, 로컬에서 처리하는 가장 안전한 PDF 솔루션
+            </div>
+            <h1
+                class="font-headline-xl-mobile text-headline-xl-mobile md:font-headline-xl md:text-headline-xl text-on-surface">
+                전문가를 위한 PDF 편집 솔루션
+            </h1>
+            <p class="font-body-md text-body-md text-on-surface-variant max-w-2xl">
+                건축 및 엔지니어링 도면, 계약서 등 모든 문서를 외부 서버 전송 없이 로컬 메모리 환경에서 안전하고 빠르게 처리하세요.
+            </p>
+
+        </section>
+
+
+        <!-- Features Grid -->
+        <section id="features" class="max-w-container-max mx-auto px-margin-mobile mb-section-gap">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                <!-- 1. Resize & Merge -->
+                <button id="nav-btn-resize"
+                    class="text-left w-full bg-surface-container-lowest border border-outline-variant rounded-xl p-6 flex flex-col gap-4 hover:shadow-sm hover:-translate-y-1 hover:border-primary/50 transition-all group cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50">
+                    <div
+                        class="w-12 h-12 rounded-lg bg-primary-container/10 flex items-center justify-center text-primary transition-transform group-hover:scale-110">
+                        <span class="material-symbols-outlined"
+                            style="font-variation-settings: 'FILL' 1;">aspect_ratio</span>
+                    </div>
+                    <div>
+                        <h3
+                            class="font-headline-md text-body-lg font-bold text-on-surface mb-2 group-hover:text-primary transition-colors">
+                            1. 리사이징 및 병합</h3>
+                        <p class="font-body-sm text-body-sm text-on-surface-variant">대량의 PDF 파일을 단일 사이즈(A4 등)로 통일하고 하나의
+                            파일로 병합합니다. (원본 크기 유지 가능)</p>
+                    </div>
+                    <div
+                        class="mt-auto self-start text-primary font-body-sm font-semibold flex items-center gap-1 group-hover:text-primary-fixed-variant transition-colors">
+                        시작하기 <span class="material-symbols-outlined text-sm">chevron_right</span>
+                    </div>
+                </button>
+
+                <!-- 2. Split -->
+                <button id="nav-btn-split"
+                    class="text-left w-full bg-surface-container-lowest border border-outline-variant rounded-xl p-6 flex flex-col gap-4 hover:shadow-sm hover:-translate-y-1 hover:border-primary/50 transition-all group cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50">
+                    <div
+                        class="w-12 h-12 rounded-lg bg-primary-container/10 flex items-center justify-center text-primary transition-transform group-hover:scale-110">
+                        <span class="material-symbols-outlined"
+                            style="font-variation-settings: 'FILL' 1;">call_split</span>
+                    </div>
+                    <div>
+                        <h3
+                            class="font-headline-md text-body-lg font-bold text-on-surface mb-2 group-hover:text-primary transition-colors">
+                            2. 분할</h3>
+                        <p class="font-body-sm text-body-sm text-on-surface-variant">여러 페이지로 구성된 PDF 문서를 개별 페이지로 분할합니다.
+                        </p>
+                    </div>
+                    <div
+                        class="mt-auto self-start text-primary font-body-sm font-semibold flex items-center gap-1 group-hover:text-primary-fixed-variant transition-colors">
+                        시작하기 <span class="material-symbols-outlined text-sm">chevron_right</span>
+                    </div>
+                </button>
+
+                <!-- 3. Masking -->
+                <button id="nav-btn-masking"
+                    class="text-left w-full bg-surface-container-lowest border border-outline-variant rounded-xl p-6 flex flex-col gap-4 hover:shadow-sm hover:-translate-y-1 hover:border-primary/50 transition-all group cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50">
+                    <div
+                        class="w-12 h-12 rounded-lg bg-primary-container/10 flex items-center justify-center text-primary transition-transform group-hover:scale-110">
+                        <span class="material-symbols-outlined"
+                            style="font-variation-settings: 'FILL' 1;">layers_clear</span>
+                    </div>
+                    <div>
+                        <h3
+                            class="font-headline-md text-body-lg font-bold text-on-surface mb-2 group-hover:text-primary transition-colors">
+                            3. 문서 마스킹</h3>
+                        <p class="font-body-sm text-body-sm text-on-surface-variant">민감한 정보를 영구적으로 가립니다. (캔버스 렌더링 후 이미지
+                            변환)</p>
+                    </div>
+                    <div
+                        class="mt-auto self-start text-primary font-body-sm font-semibold flex items-center gap-1 group-hover:text-primary-fixed-variant transition-colors">
+                        시작하기 <span class="material-symbols-outlined text-sm">chevron_right</span>
+                    </div>
+                </button>
+
+                <!-- 4. Watermark -->
+                <button id="nav-btn-watermark"
+                    class="text-left w-full bg-surface-container-lowest border border-outline-variant rounded-xl p-6 flex flex-col gap-4 hover:shadow-sm hover:-translate-y-1 hover:border-primary/50 transition-all group cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50">
+                    <div
+                        class="w-12 h-12 rounded-lg bg-primary-container/10 flex items-center justify-center text-primary transition-transform group-hover:scale-110">
+                        <span class="material-symbols-outlined"
+                            style="font-variation-settings: 'FILL' 1;">branding_watermark</span>
+                    </div>
+                    <div>
+                        <h3
+                            class="font-headline-md text-body-lg font-bold text-on-surface mb-2 group-hover:text-primary transition-colors">
+                            4. 워터마크</h3>
+                        <p class="font-body-sm text-body-sm text-on-surface-variant">저작권 보호를 위해 파일에 텍스트 워터마크를 일괄 적용합니다.
+                        </p>
+                    </div>
+                    <div
+                        class="mt-auto self-start text-primary font-body-sm font-semibold flex items-center gap-1 group-hover:text-primary-fixed-variant transition-colors">
+                        시작하기 <span class="material-symbols-outlined text-sm">chevron_right</span>
+                    </div>
+                </button>
+            </div>
+        </section>
+
+        <!-- Middle Ad Placeholder -->
+        <section class="max-w-container-max mx-auto px-margin-mobile mb-section-gap flex justify-center">
+            <div
+                class="w-full max-w-3xl h-24 bg-surface-container-low border border-dashed border-outline-variant rounded-lg flex items-center justify-center text-on-surface-variant font-body-sm">
+                [중간 광고 영역]
+            </div>
+        </section>
+
+        <!-- FAQ Section (GEO) -->
+        <section class="max-w-3xl mx-auto px-margin-mobile mb-section-gap">
+            <h2 class="font-headline-md text-headline-md text-center text-on-surface mb-8">자주 묻는 질문</h2>
+            <div class="flex flex-col gap-4">
+                <details class="bg-surface-container-lowest border border-outline-variant rounded-lg p-4 group" open>
+                    <summary
+                        class="font-body-md text-body-md font-semibold cursor-pointer list-none flex justify-between items-center text-on-surface">
+                        업로드한 파일은 외부로 유출될 위험이 없나요?
+                        <span
+                            class="material-symbols-outlined group-open:-rotate-180 transition-transform">expand_more</span>
+                    </summary>
+                    <p class="mt-4 font-body-sm text-body-sm text-on-surface-variant">
+                        네, 전혀 없습니다. PDFDesk는 파일을 서버로 전송하지 않습니다. 오직 사용자 PC의 브라우저 메모리에서만 직접 처리되므로 100% 안전하게 보호됩니다.
+                    </p>
+                </details>
+                <details class="bg-surface-container-lowest border border-outline-variant rounded-lg p-4 group">
+                    <summary
+                        class="font-body-md text-body-md font-semibold cursor-pointer list-none flex justify-between items-center text-on-surface">
+                        대용량 문서도 처리 가능한가요?
+                        <span
+                            class="material-symbols-outlined group-open:-rotate-180 transition-transform">expand_more</span>
+                    </summary>
+                    <p class="mt-4 font-body-sm text-body-sm text-on-surface-variant">
+                        브라우저 환경의 한계가 있으나 최적화된 로직으로 동작합니다. 다만 파일 총 용량이 50MB를 초과하는 경우, 기기 성능에 따라 브라우저 멈춤 현상이 발생할 수 있어 적정
+                        용량 내 작업을 권장합니다.
+                    </p>
+                </details>
+            </div>
+        </section>
+
+        <!-- Bottom Ad Placeholder -->
+        <div class="w-full bg-surface-container-low py-6 border-t border-outline-variant md:mb-0 mb-[80px]">
+            <div class="max-w-container-max mx-auto px-margin-mobile flex justify-center">
+                <div
+                    class="w-full max-w-3xl h-24 border border-dashed border-outline-variant rounded-lg flex items-center justify-center text-on-surface-variant font-body-sm bg-surface-bright">
+                    [하단 광고 영역]
+                </div>
+            </div>
+        </div>
+    </div> <!-- End of Landing View -->
+
+    <!-- Workspace Container (Dynamically rendered by JS) -->
+    <div id="workspace-container" class="hidden"></div>
+
+    <!-- Footer (E-E-A-T) -->
+    <footer class="w-full mb-[80px] md:mb-0 bg-surface-container-low dark:bg-surface-container-low border-t border-outline-variant flex flex-col gap-6 px-margin-mobile py-8 md:py-12 items-center text-center">
+        <div class="max-w-4xl w-full flex flex-col items-center justify-center">
+            <!-- Brand & E-E-A-T -->
+            <div class="font-headline-md text-headline-md font-bold text-on-surface mb-2">
+                PDFDesk
+            </div>
+            <p class="font-body-sm text-body-sm text-on-surface-variant mb-4 max-w-md">
+                "건축/설계 실무자의 보안과 업무 효율을 극대화하기 위해 제작된 100% 클라이언트 사이드 PDF 전용 툴입니다."
+            </p>
+            <p class="font-body-sm text-body-sm text-on-surface-variant flex items-center justify-center gap-1">
+                <span class="material-symbols-outlined text-[16px]">mail</span> contact@pdfdesk.co.kr
+            </p>
+        </div>
+
+        <div class="w-full max-w-4xl border-t border-outline-variant mt-2 pt-4 text-center">
+            <p class="font-body-sm text-body-sm text-on-surface-variant">
+                © 2026 PDFDesk. All rights reserved.
+            </p>
+        </div>
+    </footer>
+
+    <!-- BottomNavBar (Mobile Only) -->
+    <nav
+        class="fixed bottom-0 w-full z-50 rounded-t-3xl border-t border-outline-variant shadow-lg bg-surface-container-lowest dark:bg-surface-container-lowest flex justify-around items-center py-2 px-2 pb-safe md:hidden">
+        <label for="input-resize"
+            class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-colors rounded-full px-3 py-1 cursor-pointer">
+            <span class="material-symbols-outlined">aspect_ratio</span>
+            <span class="font-label-caps text-[10px] mt-1">리사이징</span>
+        </label>
+        <label for="input-masking"
+            class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-colors rounded-full px-3 py-1 cursor-pointer">
+            <span class="material-symbols-outlined">layers_clear</span>
+            <span class="font-label-caps text-[10px] mt-1">마스킹</span>
+        </label>
+        <label for="input-split"
+            class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-colors rounded-full px-3 py-1 cursor-pointer">
+            <span class="material-symbols-outlined">call_split</span>
+            <span class="font-label-caps text-[10px] mt-1">분할</span>
+        </label>
+        <label for="input-merge"
+            class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-colors rounded-full px-3 py-1 cursor-pointer">
+            <span class="material-symbols-outlined">merge</span>
+            <span class="font-label-caps text-[10px] mt-1">병합</span>
+        </label>
+        <label for="input-watermark"
+            class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-colors rounded-full px-3 py-1 cursor-pointer">
+            <span class="material-symbols-outlined">branding_watermark</span>
+            <span class="font-label-caps text-[10px] mt-1">워터마크</span>
+        </label>
+    </nav>
+
+    <!-- Global Modal Container -->
+    <div id="global-modal-container"></div>
+
+</body>
+
+</html>
