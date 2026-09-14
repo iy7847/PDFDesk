@@ -5,45 +5,54 @@ window.PDFDesk = window.PDFDesk || {};
     const PDFDesk = window.PDFDesk;
 
     // 3. 리사이징 및 병합 워크스페이스 인스턴스
-    const resizeSettingsHtml = `
-        <div class="mb-4">
-            <label class="block font-body-sm text-on-surface font-semibold mb-1">용지 크기</label>
-            <select id="select-size-resize" class="w-full border border-outline-variant bg-surface-bright text-on-surface rounded-lg p-2.5 font-body-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer">
-                <option value="A4" selected>A4 사이즈 (강제 맞춤)</option>
-                <option value="A3">A3 사이즈</option>
-                <option value="A2">A2 사이즈</option>
-                <option value="A1">A1 사이즈</option>
-                <option value="A0">A0 사이즈</option>
-                <option value="ORIGINAL">원본 사이즈 유지 (가장 빠름)</option>
-            </select>
-        </div>
-        <div class="mb-4">
-            <label class="block font-body-sm text-on-surface font-semibold mb-1">용지 방향</label>
-            <select id="select-orientation-resize" class="w-full border border-outline-variant bg-surface-bright text-on-surface rounded-lg p-2.5 font-body-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer">
-                <option value="AUTO" selected>자동 (원본 방향에 맞춤)</option>
-                <option value="PORTRAIT">세로 고정 (Portrait)</option>
-                <option value="LANDSCAPE">가로 고정 (Landscape)</option>
-            </select>
-        </div>
-        <div class="mb-4">
-            <label class="flex items-center gap-2 cursor-pointer group">
-                <input type="checkbox" id="check-toc-resize" class="w-4 h-4 text-primary bg-surface-bright border-outline-variant rounded focus:ring-primary focus:ring-2 cursor-pointer">
-                <span class="font-body-sm text-on-surface group-hover:text-primary transition-colors">자동 목차(TOC) 생성</span>
-            </label>
-            <p class="text-[11px] text-on-surface-variant mt-1 ml-6 leading-tight">병합된 파일의 맨 앞 장에 각 파일의 시작 페이지를 알려주는 목차를 추가합니다.</p>
-        </div>
-        <div class="mb-6">
-            <label class="block font-body-sm text-on-surface font-semibold mb-1">출력 파일명</label>
-            <input type="text" id="input-filename-resize" placeholder="기본값: 자동으로 생성됨" class="w-full border border-outline-variant bg-surface-bright text-on-surface rounded-lg p-2.5 font-body-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
-        </div>
-    `;
+    const ui = PDFDesk.UI;
+    const getResizeSettingsHtml = () => {
+        const i18n = PDFDesk.i18n;
+        const t = (k) => i18n ? i18n.t(k) : k;
+
+        return `
+            ${ui.select({
+                id: 'select-size-resize',
+                label: t('ws_resize_paper_size'),
+                options: [
+                    { value: 'A4', label: t('ws_resize_size_a4'), selected: true },
+                    { value: 'A3', label: t('ws_resize_size_a3') },
+                    { value: 'A2', label: t('ws_resize_size_a2') },
+                    { value: 'A1', label: t('ws_resize_size_a1') },
+                    { value: 'A0', label: t('ws_resize_size_a0') },
+                    { value: 'ORIGINAL', label: t('ws_resize_size_orig') }
+                ]
+            })}
+            ${ui.select({
+                id: 'select-orientation-resize',
+                label: t('ws_resize_orientation'),
+                options: [
+                    { value: 'AUTO', label: t('ws_resize_orient_auto'), selected: true },
+                    { value: 'PORTRAIT', label: t('ws_resize_orient_port') },
+                    { value: 'LANDSCAPE', label: t('ws_resize_orient_land') }
+                ]
+            })}
+            ${ui.checkbox({
+                id: 'check-toc-resize',
+                label: t('ws_resize_toc'),
+                description: t('ws_resize_toc_desc')
+            })}
+            ${ui.filenameInput({
+                id: 'input-filename-resize',
+                label: t('ws_filename_label'),
+                placeholder: t('ws_filename_placeholder')
+            })}
+        `;
+    };
 
     PDFDesk.initResize = function() {
         const workspace = new PDFDesk.WorkspaceTool({
             id: 'resize',
+            titleKey: 'ws_resize_title',
             title: '용지 크기 통일 & 병합',
+            executeBtnKey: 'ws_resize_btn',
             executeBtnText: '병합 실행하기',
-            settingsHtml: resizeSettingsHtml,
+            settingsHtml: getResizeSettingsHtml,
             onFilesChanged: (files, workspace) => {
                 if (files.length > 0) {
                     const inputFilename = document.getElementById('input-filename-resize');
@@ -82,7 +91,11 @@ window.PDFDesk = window.PDFDesk || {};
                         tocData.push({ filename: fObj.file.name, startPage: currentOutputPageNumber });
 
                         const arrayBuffer = await fObj.file.arrayBuffer();
-                        const pdf = await PDFDocument.load(arrayBuffer, { ignoreEncryption: true, throwOnInvalidObject: false });
+                        const pdf = await PDFDesk.Utils.loadPdfSafely(arrayBuffer, {}, (cur, tot, msg) => {
+                            const basePercent = Math.round((i / totalFiles) * 80);
+                            const stepPercent = Math.round((cur / tot) * (80 / totalFiles));
+                            workspace.setProgress(basePercent + stepPercent, `[${i + 1}/${totalFiles}] ${fObj.file.name}: ${msg}`);
+                        });
                         const pageIndices = pdf.getPageIndices();
                         
                         if (targetSize === 'ORIGINAL') {
@@ -156,33 +169,64 @@ window.PDFDesk = window.PDFDesk || {};
                         }
                     }
 
-                    if (includeToc) {
+                    if (includeToc && tocData.length > 0) {
                         workspace.setProgress(85, '목차(TOC) 생성 중...');
-                        const font = await mergedPdf.embedFont(window.PDFLib.StandardFonts.Helvetica);
                         const tocPage = mergedPdf.insertPage(0, [595.28, 841.89]);
                         const { width, height } = tocPage.getSize();
                         
-                        tocPage.drawText('Table of Contents', { x: 50, y: height - 80, size: 24, font: font, color: rgb(0, 0, 0) });
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        const scale = 2;
+                        canvas.width = width * scale;
+                        canvas.height = height * scale;
+                        ctx.scale(scale, scale);
+                        
+                        ctx.fillStyle = '#1e293b';
+                        ctx.font = 'bold 24px "Noto Sans KR", "Malgun Gothic", sans-serif';
+                        ctx.fillText('Table of Contents', 50, 70);
+                        
+                        ctx.strokeStyle = '#e2e8f0';
+                        ctx.lineWidth = 1;
+                        ctx.beginPath();
+                        ctx.moveTo(50, 85);
+                        ctx.lineTo(width - 50, 85);
+                        ctx.stroke();
 
-                        let yPosition = height - 130;
+                        ctx.font = '13px "Noto Sans KR", "Malgun Gothic", sans-serif';
+                        let yPosition = 120;
                         tocData.forEach((item, idx) => {
-                            const safeName = item.filename.replace(/[^\x00-\x7F]/g, "_");
-                            const text = `${idx + 1}. ${safeName}`;
-                            const pageText = `Page ${item.startPage + 1}`; 
-
-                            tocPage.drawText(text.substring(0, 50) + (text.length > 50 ? '...' : ''), { x: 50, y: yPosition, size: 12, font });
-                            tocPage.drawText(pageText, { x: width - 100, y: yPosition, size: 12, font });
+                            const displayName = `${idx + 1}. ${item.filename}`;
+                            const pageText = `Page ${item.startPage + 1}`;
                             
-                            tocPage.drawLine({
-                                start: { x: 50 + font.widthOfTextAtSize(text.substring(0, 50), 12) + 10, y: yPosition + 4 },
-                                end: { x: width - 110, y: yPosition + 4 },
-                                thickness: 1,
-                                color: rgb(0.8, 0.8, 0.8),
-                                dashArray: [2, 2]
-                            });
-
-                            yPosition -= 25;
+                            ctx.fillStyle = '#334155';
+                            ctx.textAlign = 'left';
+                            ctx.fillText(displayName.substring(0, 50) + (displayName.length > 50 ? '...' : ''), 50, yPosition);
+                            
+                            ctx.fillStyle = '#64748b';
+                            ctx.textAlign = 'right';
+                            ctx.fillText(pageText, width - 50, yPosition);
+                            
+                            ctx.save();
+                            ctx.setLineDash([2, 4]);
+                            ctx.strokeStyle = '#cbd5e1';
+                            ctx.beginPath();
+                            const textW = Math.min(ctx.measureText(displayName).width, 350);
+                            ctx.moveTo(50 + textW + 10, yPosition - 4);
+                            ctx.lineTo(width - 110, yPosition - 4);
+                            ctx.stroke();
+                            ctx.restore();
+                            
+                            yPosition += 26;
                         });
+                        
+                        const dataUrl = canvas.toDataURL('image/png');
+                        const base64Data = dataUrl.split(',')[1];
+                        const binaryString = window.atob(base64Data);
+                        const bytes = new Uint8Array(binaryString.length);
+                        for (let b = 0; b < binaryString.length; b++) { bytes[b] = binaryString.charCodeAt(b); }
+                        
+                        const tocImage = await mergedPdf.embedPng(bytes);
+                        tocPage.drawImage(tocImage, { x: 0, y: 0, width: width, height: height });
                     }
 
                     workspace.setProgress(90, '최종 병합 및 파일 생성 중... (잠시 멈출 수 있습니다)');
@@ -190,37 +234,13 @@ window.PDFDesk = window.PDFDesk || {};
                     
                     workspace.setProgress(100, '완료! 다운로드가 시작됩니다.');
 
-                    const blob = new Blob([mergedPdfBytes], { type: 'application/pdf' });
-                    const url = URL.createObjectURL(blob);
-                    
-                    let outputName = inputFilename.value.trim();
-                    if (!outputName) {
-                        const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-                        outputName = `PDFDesk_Merged_${dateStr}.pdf`;
-                    } else if (!outputName.toLowerCase().endsWith('.pdf')) {
-                        outputName += '.pdf';
-                    }
-
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = outputName;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
+                    const filename = PDFDesk.Utils.buildFilename(inputFilename.value, 'Merged', '.pdf');
+                    PDFDesk.Utils.downloadFile(mergedPdfBytes, filename, 'application/pdf');
 
                     workspace.completeProgress('파일이 성공적으로 다운로드되었습니다!');
 
                 } catch (error) {
-                    console.error('PDF 처리 중 오류:', error);
-                    let errMsg = '처리 중 오류가 발생했습니다.';
-                    if (error.message && (error.message.includes('Expected instance') || error.message.includes('Invalid object'))) {
-                        errMsg = '일부 PDF 파일의 내부 구조가 손상되었거나 표준 규격과 맞지 않아 처리할 수 없습니다.\n크롬 브라우저에서 해당 파일을 열고 "PDF로 인쇄"를 통해 새 파일로 저장한 후 다시 시도해 보세요.';
-                    } else if (error.message && error.message.toLowerCase().includes('encrypted')) {
-                        errMsg = '보안(암호)이 설정된 PDF는 처리할 수 없습니다.';
-                    }
-                    alert(errMsg);
-                    workspace.hideProgress();
+                    PDFDesk.Utils.handlePdfError(error, workspace);
                 }
             }
         });

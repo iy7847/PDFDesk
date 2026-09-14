@@ -35,34 +35,48 @@ window.PDFDesk = window.PDFDesk || {};
         return Array.from(pages).sort((a,b) => a-b);
     }
 
-    const splitSettingsHtml = `
-        <div class="mb-5 bg-surface-container-lowest border border-outline-variant rounded-lg p-4 shadow-sm">
-            <label class="block font-body-sm text-on-surface font-bold mb-1 flex items-center gap-1">
-                <span class="material-symbols-outlined text-[16px] text-primary">format_list_numbered</span> 추출할 페이지 범위
-            </label>
-            <p class="text-[11px] text-on-surface-variant leading-tight mb-2">쉼표(,)와 하이픈(-)으로 추출할 페이지만 지정하세요. (예: 1-5, 8). 빈칸으로 두면 원본의 <b>모든 페이지</b>가 1장씩 분할됩니다.</p>
-            <input type="text" id="input-range-split" placeholder="예: 1-5, 8, 11-13" class="w-full border border-outline-variant bg-surface-bright text-on-surface rounded-lg p-2.5 font-body-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary mb-1">
-            <p class="text-[10px] text-on-surface-variant leading-tight mt-1 mb-2 text-center">범위를 입력하면 즉시 좌측 화면에 반영됩니다.</p>
-        </div>
+    const ui = PDFDesk.UI;
+    const getSplitSettingsHtml = () => {
+        const i18n = PDFDesk.i18n;
+        const t = (k) => i18n ? i18n.t(k) : k;
 
-        <div class="mb-4">
-            <label class="block font-body-sm text-on-surface font-bold mb-1 flex items-center gap-1">
-                <span class="material-symbols-outlined text-[16px] text-primary">save_as</span> 출력 파일명
-            </label>
-            <p class="text-[11px] text-on-surface-variant leading-tight mb-2">이 이름으로 ZIP 파일과 내부 분할 파일(예: 파일명_001.pdf)이 저장됩니다.</p>
-            <input type="text" id="input-filename-split" placeholder="입력하지 않으면 자동 생성됨" class="w-full border border-outline-variant bg-surface-bright text-on-surface rounded-lg p-2.5 font-body-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
-        </div>
-    `;
+        const infoContent = i18n && i18n.getLang() === 'en'
+            ? `<p class="text-[11px] text-on-surface-variant leading-relaxed">
+                    👉 Click pages on the right grid to extract.<br>
+                    (Hold Ctrl or Shift to select multiple pages at once.)
+               </p>`
+            : `<p class="text-[11px] text-on-surface-variant leading-relaxed">
+                    👉 우측 그리드에서 분할(추출)할 페이지를 마우스로 직접 클릭하여 선택하세요.<br>
+                    (Ctrl, Shift 키를 누른 채 클릭하면 여러 장을 동시에 선택할 수 있습니다.)
+               </p>`;
+
+        return `
+            ${ui.card({
+                title: i18n && i18n.getLang() === 'en' ? 'Visual Page Selection' : '페이지 시각적 선택',
+                icon: 'touch_app',
+                content: infoContent
+            })}
+            ${ui.filenameInput({
+                id: 'input-filename-split',
+                label: t('ws_filename_label'),
+                placeholder: t('ws_filename_placeholder'),
+                hint: i18n && i18n.getLang() === 'en' ? 'Saves as ZIP containing individual split PDFs.' : '이 이름으로 ZIP 파일과 내부 분할 파일(예: 파일명_001.pdf)이 저장됩니다.'
+            })}
+        `;
+    };
 
     // 분할에서는 사용자가 썸네일 그리드에서 최종 확정한 페이지 목록을 임시 저장
     let currentSplitTargetPages = [];
-    let splitDebounceTimer = null;
-    let splitIntersectionObserver = null;
 
     let splitSelectedItems = new Set();
     let splitLastClickedItem = null;
+    let splitIntersectionObserver = null;
     
     function updateSplitSelectionUI() {
+        const countEl = document.getElementById('split-selected-count');
+        if (countEl) {
+            countEl.textContent = splitSelectedItems.size;
+        }
         const grid = document.getElementById('inline-preview-grid');
         if (!grid) return;
         Array.from(grid.children).forEach(child => {
@@ -95,6 +109,7 @@ window.PDFDesk = window.PDFDesk || {};
                 });
                 splitSelectedItems.clear();
                 splitLastClickedItem = null;
+                updateSplitSelectionUI();
             }
         }
     });
@@ -104,6 +119,13 @@ window.PDFDesk = window.PDFDesk || {};
         const fileObj = workspace.selectedFiles[0];
         const container = document.getElementById('custom-workspace-split');
         if (!container) return;
+
+        // 이전 파일 선택 상태 초기화
+        splitSelectedItems.clear();
+        splitLastClickedItem = null;
+
+        const i18n = PDFDesk.i18n;
+        const t = (k) => i18n ? i18n.t(k) : k;
 
         // Render header (filename)
         const sizeMb = (fileObj.file.size / 1024 / 1024).toFixed(2);
@@ -118,21 +140,63 @@ window.PDFDesk = window.PDFDesk || {};
                         <div class="text-[11px] text-on-surface-variant">${sizeMb} MB</div>
                     </div>
                 </div>
-                <button id="btn-clear-split-file" class="text-error text-sm font-semibold hover:underline flex items-center gap-1">
-                    <span class="material-symbols-outlined text-[18px]">close</span> 취소
-                </button>
+                ${ui.button({ id: 'btn-clear-split-file', text: t('ws_modal_close'), icon: 'close', variant: 'danger' })}
             </div>
             
-            <p class="text-[11px] text-primary leading-tight font-medium bg-primary/5 p-2 rounded border border-primary/20 mb-4">💡 아래의 페이지를 마우스와 Ctrl, Shift를 이용해서 선택하고, Delete 키로 삭제 할 수 있습니다.</p>
+            <!-- 빠른 선택 툴바 -->
+            <div class="flex flex-wrap items-center justify-between gap-3 bg-surface-container-lowest p-3 rounded-xl border border-outline-variant shadow-sm mb-4">
+                <div class="flex items-center gap-2 font-body-sm text-on-surface">
+                    <span class="material-symbols-outlined text-primary text-[20px]">checklist</span>
+                    <span>${t('ws_selected_files')} <strong id="split-selected-count" class="text-primary font-bold">0</strong></span>
+                </div>
+                <div class="flex flex-wrap items-center gap-2">
+                    ${ui.button({ id: 'btn-split-select-all', text: t('ws_split_quick_all'), icon: 'select_all', variant: 'tonal', extraClasses: '!py-1.5 !px-3 text-xs whitespace-nowrap' })}
+                    ${ui.button({ id: 'btn-split-select-none', text: t('ws_split_quick_clear'), icon: 'deselect', variant: 'ghost', extraClasses: '!py-1.5 !px-3 text-xs whitespace-nowrap' })}
+                    ${ui.button({ id: 'btn-split-select-odd', text: t('ws_split_quick_odd'), icon: 'filter_1', variant: 'ghost', extraClasses: '!py-1.5 !px-3 text-xs whitespace-nowrap' })}
+                    ${ui.button({ id: 'btn-split-select-even', text: t('ws_split_quick_even'), icon: 'filter_2', variant: 'ghost', extraClasses: '!py-1.5 !px-3 text-xs whitespace-nowrap' })}
+                </div>
+            </div>
+            
+            <div class="mb-4">
+                ${ui.infoBox({ text: i18n && i18n.getLang() === 'en' ? '<b>Only selected pages will be extracted.</b> Use the toolbar above or click thumbnails (with Ctrl/Shift) to select pages.' : '<b>선택된 페이지만 개별 PDF로 분할됩니다.</b> 상단 툴바를 이용하거나 마우스 클릭(Ctrl, Shift 조합)으로 추출할 페이지를 선택하세요.', type: 'info', icon: 'lightbulb' })}
+            </div>
             
             <div id="inline-preview-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                <div class="col-span-full text-center py-10 text-on-surface-variant">페이지 렌더링 중...</div>
+                <div class="col-span-full text-center py-10 text-on-surface-variant">${i18n && i18n.getLang() === 'en' ? 'Rendering pages...' : '페이지 렌더링 중...'}</div>
             </div>
         `;
 
         document.getElementById('btn-clear-split-file').addEventListener('click', () => {
+            splitSelectedItems.clear();
+            splitLastClickedItem = null;
             workspace.selectedFiles = [];
             workspace.updateUI();
+        });
+
+        // 빠른 선택 툴바 이벤트 바인딩
+        document.getElementById('btn-split-select-all').addEventListener('click', () => {
+            currentSplitTargetPages.forEach(p => splitSelectedItems.add(p));
+            updateSplitSelectionUI();
+        });
+
+        document.getElementById('btn-split-select-none').addEventListener('click', () => {
+            splitSelectedItems.clear();
+            splitLastClickedItem = null;
+            updateSplitSelectionUI();
+        });
+
+        document.getElementById('btn-split-select-odd').addEventListener('click', () => {
+            splitSelectedItems.clear();
+            splitLastClickedItem = null;
+            currentSplitTargetPages.filter(p => p % 2 !== 0).forEach(p => splitSelectedItems.add(p));
+            updateSplitSelectionUI();
+        });
+
+        document.getElementById('btn-split-select-even').addEventListener('click', () => {
+            splitSelectedItems.clear();
+            splitLastClickedItem = null;
+            currentSplitTargetPages.filter(p => p % 2 === 0).forEach(p => splitSelectedItems.add(p));
+            updateSplitSelectionUI();
         });
 
         const grid = document.getElementById('inline-preview-grid');
@@ -195,16 +259,6 @@ window.PDFDesk = window.PDFDesk || {};
                     // 렌더링 성공 후 Placeholder 내용 비우기
                     itemDiv.innerHTML = '';
                     itemDiv.className = 'relative flex flex-col items-center gap-2 group cursor-pointer';
-                    
-                    const deleteBtn = document.createElement('button');
-                    deleteBtn.className = 'absolute top-1 right-1 bg-error/90 text-on-error w-6 h-6 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10 hover:bg-error shadow-sm btn-remove';
-                    deleteBtn.innerHTML = '<span class="material-symbols-outlined text-[14px]">close</span>';
-                    
-                    deleteBtn.addEventListener('click', (e) => {
-                        e.stopPropagation(); // prevent selecting when clicking delete
-                        currentSplitTargetPages = currentSplitTargetPages.filter(p => p !== pageNum);
-                        itemDiv.remove();
-                    });
 
                     const label = document.createElement('div');
                     label.className = 'text-[12px] font-bold text-on-surface-variant bg-surface-container px-2 py-0.5 rounded';
@@ -213,7 +267,6 @@ window.PDFDesk = window.PDFDesk || {};
                     const imgContainer = document.createElement('div');
                     imgContainer.className = 'relative w-full bg-surface-bright rounded shadow-sm overflow-hidden p-1 border border-outline-variant/50 group-hover:border-primary/50 transition-colors';
                     imgContainer.appendChild(canvas);
-                    imgContainer.appendChild(deleteBtn);
                     
                     itemDiv.appendChild(imgContainer);
                     itemDiv.appendChild(label);
@@ -287,11 +340,16 @@ window.PDFDesk = window.PDFDesk || {};
     PDFDesk.initSplit = function() {
         const workspace = new PDFDesk.WorkspaceTool({
             id: 'split',
-            title: '대용량 PDF 분할',
-            executeBtnText: '분할 실행하기',
-            settingsHtml: splitSettingsHtml,
+            singleFile: true,
+            titleKey: 'ws_split_title',
+            title: '대용량 PDF 문서 분할',
+            executeBtnKey: 'ws_split_btn',
+            executeBtnText: '선택 페이지 분할 다운로드 (ZIP)',
+            settingsHtml: getSplitSettingsHtml,
             hideDefaultGrid: true,
             onFilesChanged: (files, workspace) => {
+                splitSelectedItems.clear();
+                splitLastClickedItem = null;
                 if (files.length > 0) {
                     const inputFilename = document.getElementById('input-filename-split');
                     if (!inputFilename.value) {
@@ -299,7 +357,7 @@ window.PDFDesk = window.PDFDesk || {};
                         const originalName = fileObj.file.name.replace(/\.[^/.]+$/, "");
                         inputFilename.value = `${originalName}_Split`;
                     }
-                    const rangeStr = document.getElementById('input-range-split').value;
+                    const rangeStr = ""; // 전체 페이지 렌더링
                     renderSplitPagesInline(workspace, rangeStr);
                 }
             },
@@ -313,14 +371,19 @@ window.PDFDesk = window.PDFDesk || {};
 
                     const { PDFDocument } = window.PDFLib;
                     const arrayBuffer = await fileObj.file.arrayBuffer();
-                    const pdfDoc = await PDFDocument.load(arrayBuffer, { ignoreEncryption: true, throwOnInvalidObject: false });
+                    const pdfDoc = await PDFDesk.Utils.loadPdfSafely(arrayBuffer, {}, (cur, tot, msg) => {
+                        workspace.setProgress(Math.round((cur / tot) * 10), msg);
+                    });
                     const totalPages = pdfDoc.getPageCount();
 
-                    // 타겟 페이지 결정
-                    const targetPages = currentSplitTargetPages;
+                    // 타겟 페이지 결정 (마우스로 선택한 페이지들)
+                    let targetPages = [];
+                    if (splitSelectedItems.size > 0) {
+                        targetPages = Array.from(splitSelectedItems).sort((a,b) => a - b);
+                    }
 
-                    if (!targetPages || targetPages.length === 0) {
-                        alert('추출할 페이지가 없습니다.');
+                    if (targetPages.length === 0) {
+                        alert('분할할 페이지를 최소 1개 이상 마우스로 클릭하여 선택해주세요.');
                         workspace.hideProgress();
                         return;
                     }
@@ -355,39 +418,11 @@ window.PDFDesk = window.PDFDesk || {};
                     workspace.setProgress(100, '완료! 다운로드가 시작됩니다.');
 
                     const finalZipName = `${baseName}.zip`;
-
-                    const url = URL.createObjectURL(zipContent);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = finalZipName;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
+                    PDFDesk.Utils.downloadFile(zipContent, finalZipName, 'application/zip');
 
                     workspace.completeProgress('분할이 성공적으로 완료되었습니다!');
                 } catch (error) {
-                    console.error('분할 중 오류:', error);
-                    let errMsg = '처리 중 오류가 발생했습니다.';
-                    if (error.message && (error.message.includes('Expected instance') || error.message.includes('Invalid object'))) {
-                        errMsg = '이 PDF 파일은 내부 구조가 손상되었거나 표준 규격과 맞지 않아 분할할 수 없습니다.\\n크롬 브라우저에서 해당 파일을 열고 "PDF로 인쇄"를 통해 새 파일로 저장한 후 다시 시도해 보세요.';
-                    } else if (error.message && error.message.toLowerCase().includes('encrypted')) {
-                        errMsg = '보안(암호)이 설정된 PDF는 처리할 수 없습니다.';
-                    }
-                    alert(errMsg);
-                    workspace.hideProgress();
-                }
-            },
-            onRender: (workspace) => {
-                const inputRange = document.getElementById('input-range-split');
-                
-                if(inputRange) {
-                    inputRange.addEventListener('input', () => {
-                        clearTimeout(splitDebounceTimer);
-                        splitDebounceTimer = setTimeout(() => {
-                            renderSplitPagesInline(workspace, inputRange.value);
-                        }, 400); // 400ms 딜레이 후 렌더링
-                    });
+                    PDFDesk.Utils.handlePdfError(error, workspace);
                 }
             }
         });

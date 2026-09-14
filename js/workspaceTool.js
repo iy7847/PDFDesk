@@ -8,13 +8,17 @@ window.PDFDesk = window.PDFDesk || {};
         constructor(config) {
             this.id = config.id;
             this.title = config.title;
+            this.titleKey = config.titleKey;
             this.settingsHtml = config.settingsHtml;
             this.executeBtnText = config.executeBtnText;
+            this.executeBtnKey = config.executeBtnKey;
             this.onExecute = config.onExecute;
             this.onRender = config.onRender;
             this.onFilesChanged = config.onFilesChanged;
             this.singleFile = config.singleFile || false;
             this.hideDefaultGrid = config.hideDefaultGrid || false;
+            this.acceptTypes = config.acceptTypes || 'application/pdf';
+            this.acceptValidation = config.acceptValidation || ((f) => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'));
 
             this.selectedFiles = [];
             this.selectedItems = new Set();
@@ -25,19 +29,37 @@ window.PDFDesk = window.PDFDesk || {};
         }
 
         render() {
+            this.clearWorkspace();
             // 메인 템플릿 생성
+            const ui = PDFDesk.UI;
+            const i18n = PDFDesk.i18n;
+
+            // 동적 언어 번역 지원
+            const currentTitle = typeof this.title === 'function' ? this.title() : (this.titleKey && i18n ? i18n.t(this.titleKey) : this.title);
+            const currentExecuteBtnText = typeof this.executeBtnText === 'function' ? this.executeBtnText() : (this.executeBtnKey && i18n ? i18n.t(this.executeBtnKey) : this.executeBtnText);
+            const currentSettingsHtml = typeof this.settingsHtml === 'function' ? this.settingsHtml() : this.settingsHtml;
+            const backText = i18n ? i18n.t('ws_back') : '돌아가기';
+            const settingsTitle = i18n ? i18n.t('ws_settings') : '작업 설정';
+            const defaultDropzoneText = this.singleFile 
+                ? (i18n ? i18n.t('ws_dropzone_pdf_single') : '여기로 1개의 PDF 파일을 드래그하세요')
+                : (i18n ? i18n.t('ws_dropzone_pdf_multi') : '여기로 PDF 파일을 드래그하세요');
+            const dropzoneSubText = this.singleFile 
+                ? `<span class="text-primary font-bold bg-primary/10 px-2 py-0.5 rounded text-[11px]">${i18n ? i18n.t('ws_single_file_notice') : '※ 범위 및 미리보기 적용을 위해 1개의 파일만 업로드 가능합니다.'}</span>`
+                : `${i18n ? i18n.t('ws_multi_files_notice') : '(여러 파일 동시 선택 가능)'}`;
+            const selectedFilesText = i18n ? i18n.t('ws_selected_files') : '선택된 파일:';
+            const btnAddText = i18n ? i18n.t('ws_btn_add') : '추가';
+            const btnDeleteSelectedText = i18n ? i18n.t('ws_btn_delete_selected') : '선택 지우기';
+            const btnClearAllText = i18n ? i18n.t('ws_btn_clear_all') : '모두 지우기';
+            const gridHintText = i18n ? i18n.t('ws_grid_hint') : '아래의 파일을 마우스와 Ctrl, Shift를 이용해서 다중 선택하고, Delete 키로 삭제할 수 있습니다.';
+
             const html = `
                 <div id="workspace-${this.id}" class="max-w-container-max mx-auto px-margin-mobile py-8 md:py-12 min-h-[60vh]">
-                    <div class="mb-6 flex items-center justify-between">
-                        <div class="flex items-center gap-4">
-                            <button id="btn-back-${this.id}" class="text-on-surface-variant hover:text-primary flex items-center gap-1 transition-colors bg-surface-container-low px-4 py-2 rounded-lg">
-                                <span class="material-symbols-outlined">arrow_back</span> 돌아가기
-                            </button>
-                            <h2 class="font-headline-md text-headline-md text-on-surface hidden sm:block">${this.title}</h2>
+                    <div class="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div class="flex items-center gap-3 min-w-0 flex-1">
+                            ${ui.button({ id: `btn-back-${this.id}`, text: backText, icon: 'arrow_back', variant: 'ghost', extraClasses: 'border border-outline-variant/60 shadow-xs hover:border-primary/40 shrink-0' })}
+                            <h2 class="font-headline-md text-headline-md text-on-surface truncate hidden sm:block" title="${currentTitle}">${currentTitle}</h2>
                         </div>
-                        <div class="hidden md:flex h-12 w-[320px] bg-surface-container-low border border-dashed border-outline-variant flex items-center justify-center text-on-surface-variant font-body-sm text-xs rounded">
-                            [상단 광고 영역]
-                        </div>
+                        ${ui.adSlot({ id: `ad-top-${this.id}`, label: '상단 광고 영역', format: 'banner', extraClasses: 'hidden md:flex shrink-0 w-80 lg:w-96 max-w-full' })}
                     </div>
 
                     <div class="flex flex-col md:flex-row gap-4 md:gap-6 items-start">
@@ -46,22 +68,19 @@ window.PDFDesk = window.PDFDesk || {};
                             <div class="relative bg-surface-container-lowest border border-outline-variant rounded-xl p-5 shadow-sm">
                                 <h3 class="font-body-lg font-bold text-on-surface mb-4 flex items-center justify-between">
                                     <div class="flex items-center gap-2">
-                                        <span class="material-symbols-outlined text-primary">settings</span> 작업 설정
+                                        <span class="material-symbols-outlined text-primary">settings</span> ${settingsTitle}
                                     </div>
                                     <div id="settings-header-actions"></div>
                                 </h3>
                                 
                                 <!-- Custom Settings injected here -->
-                                ${this.settingsHtml}
+                                ${currentSettingsHtml}
 
-                                <button id="btn-run-${this.id}" class="w-full bg-primary-container text-on-primary px-6 py-4 rounded-xl font-headline-md text-body-md font-bold shadow-sm hover:-translate-y-0.5 hover:shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-none" disabled>
-                                    ${this.executeBtnText}
-                                    <span class="material-symbols-outlined">play_arrow</span>
-                                </button>
+                                <div class="mt-4">
+                                    ${ui.button({ id: `btn-run-${this.id}`, text: currentExecuteBtnText, icon: 'play_arrow', iconPosition: 'right', variant: 'primary', extraClasses: 'w-full py-4 text-body-md', disabled: true })}
+                                </div>
                             </div>
-                            <div class="w-full h-[250px] shrink-0 bg-surface-container-low border border-dashed border-outline-variant rounded-xl flex items-center justify-center text-on-surface-variant font-body-sm shadow-sm mb-4">
-                                [사이드바 광고 영역]
-                            </div>
+                            ${ui.adSlot({ id: `ad-sidebar-${this.id}`, label: '사이드바 광고 영역', format: 'sidebar', extraClasses: 'w-full mt-3' })}
                         </div>
 
                         <!-- Right: Visual Grid Area -->
@@ -72,14 +91,13 @@ window.PDFDesk = window.PDFDesk || {};
                                     <div class="w-20 h-20 rounded-full bg-primary-container/20 flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform mb-4">
                                         <span class="material-symbols-outlined text-primary text-4xl">note_add</span>
                                     </div>
-                                    <h3 class="font-headline-md text-body-lg font-bold text-on-surface mb-2">
-                                        ${this.singleFile ? '여기로 1개의 PDF 파일을 드래그하세요' : '여기로 PDF 파일을 드래그하세요'}
+                                    <h3 id="dropzone-title-${this.id}" class="font-headline-md text-body-lg font-bold text-on-surface mb-2">
+                                        ${this.dropzoneText || defaultDropzoneText}
                                     </h3>
-                                    <p class="font-body-sm text-on-surface-variant text-center">
-                                        또는 클릭하여 파일 선택 <br>
-                                        ${this.singleFile ? '<span class="text-primary font-bold bg-primary/10 px-2 py-0.5 rounded text-[11px]">※ 범위 및 미리보기 적용을 위해 1개의 파일만 업로드 가능합니다.</span>' : '(여러 파일 동시 선택 가능)'}
+                                    <p class="font-body-sm text-body-sm text-on-surface-variant mb-4">
+                                        ${dropzoneSubText}
                                     </p>
-                                    <input type="file" id="file-input-${this.id}" ${this.singleFile ? '' : 'multiple'} accept="application/pdf" class="hidden">
+                                    <input type="file" id="file-input-${this.id}" ${this.singleFile ? '' : 'multiple'} accept="${this.acceptTypes}" class="hidden">
                                 </div>
                             </div>
 
@@ -87,20 +105,16 @@ window.PDFDesk = window.PDFDesk || {};
                             <div class="w-full">
                                 <div id="thumbnail-workspace-${this.id}" class="hidden flex-col gap-4">
                                     <div id="default-header-${this.id}" class="flex justify-between items-center bg-surface-container-lowest p-3 rounded-lg border border-outline-variant ${this.hideDefaultGrid ? 'hidden' : ''}">
-                                        <div class="font-body-sm text-on-surface">선택된 파일: <strong id="file-count-${this.id}" class="text-primary">0</strong>개</div>
+                                        <div class="font-body-sm text-on-surface">${selectedFilesText} <strong id="file-count-${this.id}" class="text-primary">0</strong></div>
                                         <div class="flex gap-2">
-                                            <button id="btn-add-more-${this.id}" class="text-primary text-sm font-semibold hover:underline flex items-center gap-1">
-                                                <span class="material-symbols-outlined text-[18px]">add</span> 추가
-                                            </button>
-                                            <button id="btn-delete-selected-${this.id}" class="text-error text-sm font-semibold hover:underline flex items-center gap-1 hidden">
-                                                <span class="material-symbols-outlined text-[18px]">delete_sweep</span> 선택 지우기
-                                            </button>
-                                            <button id="btn-clear-files-${this.id}" class="text-error text-sm font-semibold hover:underline flex items-center gap-1">
-                                                <span class="material-symbols-outlined text-[18px]">delete</span> 모두 지우기
-                                            </button>
+                                            ${ui.button({ id: `btn-add-more-${this.id}`, text: btnAddText, icon: 'add', variant: 'secondary' })}
+                                            ${ui.button({ id: `btn-delete-selected-${this.id}`, text: btnDeleteSelectedText, icon: 'delete_sweep', variant: 'danger', extraClasses: 'hidden' })}
+                                            ${ui.button({ id: `btn-clear-files-${this.id}`, text: btnClearAllText, icon: 'delete', variant: 'danger' })}
                                         </div>
                                     </div>
-                                    <p class="text-[11px] text-primary leading-tight font-medium bg-primary/5 p-2 rounded border border-primary/20 ${this.hideDefaultGrid ? 'hidden' : ''}">💡 아래의 페이지를 마우스와 Ctrl, Shift를 이용해서 선택하고, Delete 키로 삭제 할 수 있습니다.</p>
+                                    <div class="${this.hideDefaultGrid ? 'hidden' : ''}">
+                                        ${ui.infoBox({ text: gridHintText, type: 'info', icon: 'lightbulb' })}
+                                    </div>
                                     <ul id="file-grid-${this.id}" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4 ${this.hideDefaultGrid ? 'hidden' : ''}">
                                     </ul>
                                     <!-- Custom Area for Split Workspace -->
@@ -116,7 +130,26 @@ window.PDFDesk = window.PDFDesk || {};
             workspaceContainer.innerHTML = html;
             this.container = document.getElementById(`workspace-${this.id}`);
             this.bindEvents();
+
+            // 언어 변경 리스너 등록 (현재 활성화된 워크스페이스 자동 갱신)
+            if (!this._langListenerBound) {
+                window.addEventListener('pdfdesk:lang-changed', () => {
+                    const wsEl = document.getElementById(`workspace-${this.id}`);
+                    if (wsEl && !wsEl.closest('.hidden')) {
+                        // 현재 워크스페이스가 화면에 노출 중일 때만 리렌더링
+                        const prevFiles = [...this.selectedFiles];
+                        this.render();
+                        if (prevFiles.length > 0) {
+                            this.handleFiles(prevFiles);
+                        }
+                    }
+                });
+                this._langListenerBound = true;
+            }
             if (this.onRender) this.onRender(this);
+            if (window.PDFDesk.Utils && typeof window.PDFDesk.Utils.refreshAds === 'function') {
+                window.PDFDesk.Utils.refreshAds(this.container);
+            }
         }
 
         bindEvents() {
@@ -149,13 +182,18 @@ window.PDFDesk = window.PDFDesk || {};
 
             // 돌아가기
             btnBack.addEventListener('click', () => {
-                const workspaceContainer = document.getElementById('workspace-container');
-                const landingView = document.getElementById('landing-view');
-                workspaceContainer.classList.add('hidden');
-                workspaceContainer.innerHTML = ''; // 메모리 정리
-                landingView.classList.remove('hidden');
-                landingView.classList.add('block');
-                window.scrollTo(0, 0);
+                if (window.PDFDesk && typeof window.PDFDesk.closeWorkspace === 'function') {
+                    window.PDFDesk.closeWorkspace();
+                } else {
+                    this.clearWorkspace();
+                    const workspaceContainer = document.getElementById('workspace-container');
+                    const landingView = document.getElementById('landing-view');
+                    workspaceContainer.classList.add('hidden');
+                    workspaceContainer.innerHTML = ''; // 메모리 정리
+                    landingView.classList.remove('hidden');
+                    landingView.classList.add('block');
+                    window.scrollTo(0, 0);
+                }
             });
 
             // 파일 입력 트리거
@@ -168,15 +206,42 @@ window.PDFDesk = window.PDFDesk || {};
                 window.addEventListener(eventName, preventDefaults, false);
             });
 
-            // 드롭존 시각 효과
+            const thumbnailWorkspace = document.getElementById(`thumbnail-workspace-${this.id}`);
+
+            // 드롭존 및 썸네일 워크스페이스 시각 효과
             ['dragenter', 'dragover'].forEach(eventName => {
-                dropzoneEmpty.classList.add('border-primary', 'bg-surface-container-low');
-            });
-            ['dragleave', 'drop'].forEach(eventName => {
-                dropzoneEmpty.classList.remove('border-primary', 'bg-surface-container-low');
+                dropzoneEmpty.addEventListener(eventName, () => {
+                    dropzoneEmpty.classList.add('border-primary', 'bg-surface-container-low');
+                });
             });
 
-            // 실제 파일 드롭 및 변경
+            thumbnailWorkspace.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                if (this.singleFile && this.selectedFiles.length > 0) return;
+                thumbnailWorkspace.classList.add('border-primary', 'bg-primary/5');
+            });
+
+            thumbnailWorkspace.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                thumbnailWorkspace.classList.remove('border-primary', 'bg-primary/5');
+            });
+
+            thumbnailWorkspace.addEventListener('drop', (e) => {
+                e.preventDefault();
+                thumbnailWorkspace.classList.remove('border-primary', 'bg-primary/5');
+                if (this.singleFile && this.selectedFiles.length > 0) return;
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    this.handleFiles(Array.from(e.dataTransfer.files));
+                }
+            });
+
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropzoneEmpty.addEventListener(eventName, () => {
+                    dropzoneEmpty.classList.remove('border-primary', 'bg-surface-container-low');
+                });
+            });
+
+            // 실제 파일 드롭 및 변경 (초기 화면)
             dropzoneEmpty.addEventListener('drop', (e) => {
                 if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
                     this.handleFiles(Array.from(e.dataTransfer.files));
@@ -193,10 +258,7 @@ window.PDFDesk = window.PDFDesk || {};
             // 모두 지우기
             btnClearFiles.addEventListener('click', () => {
                 if(confirm('모든 파일을 목록에서 지우시겠습니까?')) {
-                    this.selectedFiles = [];
-                    this.selectedItems.clear();
-                    this.activeItemIndex = 0;
-                    this.lastClickedItem = null;
+                    this.clearWorkspace();
                     this.updateUI();
                     if(this.onActiveItemChanged) this.onActiveItemChanged(this.activeItemIndex, this);
                 }
@@ -210,24 +272,32 @@ window.PDFDesk = window.PDFDesk || {};
 
         async handleFiles(files) {
             let totalSize = 0;
-            const pdfFiles = files.filter(f => {
-                if (f.type !== 'application/pdf' && !f.name.toLowerCase().endsWith('.pdf')) return false;
+            const validFiles = files.filter(f => {
+                if (!this.acceptValidation(f)) return false;
                 totalSize += f.size;
                 return true;
             });
 
-            if (pdfFiles.length < files.length) alert('PDF 파일만 선택 가능합니다.');
+            if (validFiles.length < files.length) alert('지원하지 않는 파일 형식이 포함되어 있습니다.');
             if (totalSize > PDFDesk.MAX_FILE_SIZE) alert('총 용량이 50MB를 초과하면 브라우저가 느려질 수 있습니다.');
 
-            let filesToProcess = pdfFiles;
+            let filesToProcess = validFiles;
             if (this.singleFile) {
-                if (filesToProcess.length > 0) {
-                    filesToProcess = [filesToProcess[0]];
-                    this.selectedFiles = []; // 기존 파일 교체
+                if (this.selectedFiles.length > 0 || validFiles.length > 1) {
+                    alert('이 작업은 하나의 파일만 처리할 수 있습니다. 가장 첫 번째 파일만 추가됩니다.');
+                }
+                if (validFiles.length > 0 && this.selectedFiles.length === 0) {
+                    filesToProcess = [validFiles[0]];
+                } else {
+                    filesToProcess = [];
                 }
             }
 
+            const currentClearId = this.clearId || 0;
+            
             for (const file of filesToProcess) {
+                if (currentClearId !== (this.clearId || 0)) break; // 삭제/초기화 시 추가 중단
+                
                 const fileObj = {
                     id: Date.now().toString() + Math.random().toString(36).substring(2),
                     file: file,
@@ -237,10 +307,21 @@ window.PDFDesk = window.PDFDesk || {};
                 this.updateUI(); 
                 if(!this.hideDefaultGrid) {
                     fileObj.thumbnailDataUrl = await this.generateThumbnail(file);
+                    if (currentClearId !== (this.clearId || 0)) break; // 썸네일 생성 중 삭제/초기화 시 렌더링 중단
                     this.updateUI(); 
                 }
             }
-            if(this.onFilesChanged) this.onFilesChanged(this.selectedFiles, this);
+            if (currentClearId === (this.clearId || 0) && this.onFilesChanged) {
+                this.onFilesChanged(this.selectedFiles, this);
+            }
+        }
+        
+        clearWorkspace() {
+            this.selectedFiles = [];
+            this.selectedItems.clear();
+            this.activeItemIndex = 0;
+            this.lastClickedItem = null;
+            this.clearId = (this.clearId || 0) + 1;
         }
 
         deleteSelectedItems() {
@@ -307,31 +388,56 @@ window.PDFDesk = window.PDFDesk || {};
 
         async generateThumbnail(file) {
             try {
-                const pdfjsLib = window['pdfjs-dist/build/pdf'];
-                const arrayBuffer = await file.arrayBuffer();
-                const loadingTask = pdfjsLib.getDocument({ 
-                    data: arrayBuffer.slice(0),
-                    cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
-                    cMapPacked: true
-                });
-                const pdf = await loadingTask.promise;
-                const page = await pdf.getPage(1);
-                
-                const viewport = page.getViewport({ scale: 1.0 });
-                const scale = 300 / viewport.width; 
-                const scaledViewport = page.getViewport({ scale: scale });
+                if (file.type.startsWith('image/') || file.name.match(/\.(jpg|jpeg|png)$/i)) {
+                    // 이미지 파일인 경우 직접 캔버스에 그려서 리사이즈 후 썸네일 생성
+                    return new Promise((resolve) => {
+                        const img = new Image();
+                        img.onload = () => {
+                            const canvas = document.createElement('canvas');
+                            const ctx = canvas.getContext('2d');
+                            const scale = Math.min(300 / img.width, 400 / img.height);
+                            const width = img.width * scale;
+                            const height = img.height * scale;
+                            canvas.width = width;
+                            canvas.height = height;
+                            ctx.drawImage(img, 0, 0, width, height);
+                            URL.revokeObjectURL(img.src);
+                            resolve(canvas.toDataURL('image/jpeg', 0.8));
+                        };
+                        img.onerror = () => {
+                            URL.revokeObjectURL(img.src);
+                            resolve(null);
+                        };
+                        img.src = URL.createObjectURL(file);
+                    });
+                } else {
+                    // PDF 파일인 경우 기존 pdf.js 로직 사용
+                    const pdfjsLib = window['pdfjs-dist/build/pdf'];
+                    const arrayBuffer = await file.arrayBuffer();
+                    const loadingTask = pdfjsLib.getDocument({ 
+                        data: arrayBuffer.slice(0),
+                        cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
+                        cMapPacked: true
+                    });
+                    const pdf = await loadingTask.promise;
+                    const page = await pdf.getPage(1);
+                    
+                    const viewport = page.getViewport({ scale: 1.0 });
+                    const scale = 300 / viewport.width; 
+                    const scaledViewport = page.getViewport({ scale: scale });
 
-                const canvas = document.createElement('canvas');
-                const context = canvas.getContext('2d');
-                canvas.height = scaledViewport.height;
-                canvas.width = scaledViewport.width;
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    canvas.height = scaledViewport.height;
+                    canvas.width = scaledViewport.width;
 
-                const renderContext = { canvasContext: context, viewport: scaledViewport };
-                await page.render(renderContext).promise;
-                return canvas.toDataURL('image/jpeg', 0.8);
+                    const renderContext = { canvasContext: context, viewport: scaledViewport };
+                    await page.render(renderContext).promise;
+                    return canvas.toDataURL('image/jpeg', 0.8);
+                }
             } catch (err) {
                 console.error('썸네일 생성 실패:', err);
-                return null;
+                return false;
             }
         }
 
@@ -358,6 +464,17 @@ window.PDFDesk = window.PDFDesk || {};
                 thumbnailWorkspace.classList.add('flex');
                 btnRun.disabled = false;
                 
+                const btnAddFile = document.getElementById(`btn-add-file-${this.id}`);
+                if (btnAddFile) {
+                    if (this.singleFile) {
+                        btnAddFile.classList.add('hidden');
+                        btnAddFile.classList.remove('flex');
+                    } else {
+                        btnAddFile.classList.remove('hidden');
+                        btnAddFile.classList.add('flex');
+                    }
+                }
+                
                 if (!this.hideDefaultGrid) {
                     fileGrid.innerHTML = '';
                     this.selectedFiles.forEach((fObj, index) => {
@@ -370,12 +487,17 @@ window.PDFDesk = window.PDFDesk || {};
                         let thumbHtml = '';
                         if (fObj.thumbnailDataUrl) {
                             thumbHtml = `<img src="${fObj.thumbnailDataUrl}" class="w-full h-full object-cover rounded pointer-events-none border border-outline-variant/30">`;
+                        } else if (fObj.thumbnailDataUrl === false) {
+                            thumbHtml = `<div class="w-full h-full flex flex-col items-center justify-center bg-surface-container-lowest rounded border border-outline-variant/30 pointer-events-none text-on-surface-variant">
+                                <span class="material-symbols-outlined text-outline text-2xl mb-1">image_not_supported</span>
+                                <span class="text-[10px] text-outline">미리보기 불가</span>
+                            </div>`;
                         } else {
-                            thumbHtml = `<div class="w-full h-full flex flex-col items-center justify-center bg-surface-container-lowest rounded border border-outline-variant/30 pointer-events-none">
-                                <span class="material-symbols-outlined text-outline text-3xl mb-1 ${fObj.thumbnailDataUrl === null ? '' : 'animate-spin'}">
-                                    ${fObj.thumbnailDataUrl === null ? 'image_not_supported' : 'sync'}
-                                </span>
-                                <span class="text-[10px] text-outline">Loading...</span>
+                            thumbHtml = `<div class="w-full h-full flex flex-col items-center justify-center bg-surface-container-lowest rounded border border-outline-variant/30 pointer-events-none animate-pulse">
+                                <div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center mb-1.5">
+                                    <span class="material-symbols-outlined text-primary text-[18px] animate-spin">sync</span>
+                                </div>
+                                <span class="text-[10px] font-medium text-on-surface-variant">생성 중...</span>
                             </div>`;
                         }
 

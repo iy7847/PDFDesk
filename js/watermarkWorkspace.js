@@ -15,6 +15,7 @@
         text: 'CONFIDENTIAL',
         color: '#808080',
         font: '맑은 고딕',
+        userSelectedFont: false,
         imageFile: null,
         imageUrl: null,
         scale: 1.0,
@@ -108,124 +109,121 @@
         }
     });
 
-    const watermarkSettingsHtml = `
-
+    const ui = PDFDesk.UI;
+    function getWatermarkSettingsHtml() {
+        const t = (key, fallback) => PDFDesk.i18n ? PDFDesk.i18n.t(key, fallback) : fallback;
+        return `
         <div class="mb-5 bg-surface-container-lowest border border-outline-variant rounded-lg p-4 shadow-sm">
-            <label class="block font-body-sm text-on-surface font-bold mb-2 flex items-center gap-1">
-                <span class="material-symbols-outlined text-[16px] text-primary">category</span> 워터마크 타입
-            </label>
-            <div class="flex gap-2 mb-4">
-                <label class="flex-1 text-center border border-outline-variant rounded-lg p-2 cursor-pointer hover:bg-surface-container-low transition-colors has-[:checked]:bg-primary/10 has-[:checked]:border-primary has-[:checked]:text-primary">
-                    <input type="radio" name="wm-type" value="text" class="hidden" checked>
-                    <span class="font-body-sm font-semibold">텍스트</span>
-                </label>
-                <label class="flex-1 text-center border border-outline-variant rounded-lg p-2 cursor-pointer hover:bg-surface-container-low transition-colors has-[:checked]:bg-primary/10 has-[:checked]:border-primary has-[:checked]:text-primary">
-                    <input type="radio" name="wm-type" value="image" class="hidden">
-                    <span class="font-body-sm font-semibold">이미지</span>
-                </label>
-            </div>
+            ${ui.radioGroup({
+                name: 'wm-type',
+                label: t('ws_watermark_type', '워터마크 타입'),
+                icon: 'category',
+                options: [
+                    { value: 'text', label: t('ws_watermark_type_text', '텍스트'), checked: true },
+                    { value: 'image', label: t('ws_watermark_type_image', '이미지') }
+                ]
+            })}
 
             <!-- Text Input Area -->
             <div id="wm-text-area" class="mb-4">
                 <div class="grid grid-cols-[3rem_1fr] gap-2 mb-2 w-full">
-                    <input type="color" id="input-watermark-color" class="h-11 w-full p-1 border border-outline-variant bg-surface-bright rounded-lg cursor-pointer" value="#808080" title="워터마크 색상">
+                    <input type="color" id="input-watermark-color" class="h-11 w-full p-1 border border-outline-variant bg-surface-bright rounded-lg cursor-pointer" value="#808080" title="${t('ws_watermark_color_title', '워터마크 색상')}">
                     <select id="select-watermark-font" class="w-full border border-outline-variant bg-surface-bright text-on-surface rounded-lg h-11 px-3 font-body-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
-                        <optgroup label="윈도우 기본 폰트">
-                            <option value="맑은 고딕">맑은 고딕</option>
-                            <option value="돋움">돋움</option>
-                            <option value="굴림">굴림</option>
-                            <option value="바탕">바탕</option>
-                            <option value="궁서">궁서</option>
-                            <option value="HY견고딕">HY견고딕</option>
-                            <option value="HY견명조">HY견명조</option>
-                            <option value="HY헤드라인M">HY헤드라인M</option>
-                            <option value="휴먼둥근헤드라인">휴먼둥근헤드라인</option>
-                        </optgroup>
-                        <optgroup label="맥(Mac) 기본 폰트">
-                            <option value="Apple SD 산돌고딕 Neo">Apple SD 산돌고딕 Neo</option>
-                            <option value="애플고딕">애플고딕</option>
-                            <option value="애플명조">애플명조</option>
-                        </optgroup>
-                        <optgroup label="안드로이드/웹 기본 폰트">
-                            <option value="Noto Sans KR">Noto Sans KR (나눔고딕)</option>
-                            <option value="Roboto">Roboto</option>
-                        </optgroup>
-                        <optgroup label="영문 유명 폰트">
-                            <option value="Arial">Arial</option>
-                            <option value="Times New Roman">Times New Roman</option>
-                            <option value="Verdana">Verdana</option>
-                            <option value="Tahoma">Tahoma</option>
-                            <option value="Comic Sans MS">Comic Sans MS</option>
-                            <option value="Impact">Impact</option>
-                        </optgroup>
-                        <optgroup label="기타">
-                            <option value="custom">직접 입력...</option>
-                        </optgroup>
+                        ${(PDFDesk.i18n && PDFDesk.i18n.getLang() === 'en') ? `
+                            <optgroup label="${t('ws_watermark_font_standard', 'Standard Western Fonts')}">
+                                <option value="Arial">Arial</option>
+                                <option value="Times New Roman">Times New Roman</option>
+                                <option value="Roboto">Roboto</option>
+                                <option value="Verdana">Verdana</option>
+                                <option value="Tahoma">Tahoma</option>
+                                <option value="Impact">Impact</option>
+                                <option value="Comic Sans MS">Comic Sans MS</option>
+                            </optgroup>
+                            <optgroup label="${t('ws_watermark_font_korean', 'Korean System Fonts (Windows/Mac)')}">
+                                <option value="맑은 고딕">Malgun Gothic (맑은 고딕)</option>
+                                <option value="Noto Sans KR">Noto Sans KR</option>
+                                <option value="Apple SD 산돌고딕 Neo">Apple SD Gothic Neo</option>
+                                <option value="돋움">Dotum (돋움)</option>
+                                <option value="굴림">Gulim (굴림)</option>
+                                <option value="바탕">Batang (바탕)</option>
+                                <option value="궁서">Gungsuh (궁서)</option>
+                            </optgroup>
+                            <optgroup label="${t('ws_watermark_font_custom', 'Custom Font')}">
+                                <option value="custom">${t('ws_watermark_font_custom', 'Custom Font...')}</option>
+                            </optgroup>
+                        ` : `
+                            <optgroup label="${t('ws_watermark_font_win', '윈도우 기본 폰트')}">
+                                <option value="맑은 고딕">맑은 고딕</option>
+                                <option value="돋움">돋움</option>
+                                <option value="굴림">굴림</option>
+                                <option value="바탕">바탕</option>
+                                <option value="궁서">궁서</option>
+                                <option value="HY견고딕">HY견고딕</option>
+                                <option value="HY견명조">HY견명조</option>
+                                <option value="HY헤드라인M">HY헤드라인M</option>
+                                <option value="휴먼둥근헤드라인">휴먼둥근헤드라인</option>
+                            </optgroup>
+                            <optgroup label="${t('ws_watermark_font_mac', '맥(Mac) 기본 폰트')}">
+                                <option value="Apple SD 산돌고딕 Neo">Apple SD 산돌고딕 Neo</option>
+                                <option value="애플고딕">애플고딕</option>
+                                <option value="애플명조">애플명조</option>
+                            </optgroup>
+                            <optgroup label="${t('ws_watermark_font_web', '안드로이드/웹 기본 폰트')}">
+                                <option value="Noto Sans KR">Noto Sans KR (나눔고딕)</option>
+                                <option value="Roboto">Roboto</option>
+                            </optgroup>
+                            <optgroup label="${t('ws_watermark_font_en', '영문 유명 폰트')}">
+                                <option value="Arial">Arial</option>
+                                <option value="Times New Roman">Times New Roman</option>
+                                <option value="Verdana">Verdana</option>
+                                <option value="Tahoma">Tahoma</option>
+                                <option value="Comic Sans MS">Comic Sans MS</option>
+                                <option value="Impact">Impact</option>
+                            </optgroup>
+                            <optgroup label="${t('ws_watermark_font_custom', '기타')}">
+                                <option value="custom">${t('ws_watermark_font_custom', '직접 입력...')}</option>
+                            </optgroup>
+                        `}
                     </select>
-                    <input type="text" id="input-watermark-font-custom" placeholder="폰트명 입력" class="hidden flex-1 border border-outline-variant bg-surface-bright text-on-surface rounded-lg p-2.5 font-body-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+                    <input type="text" id="input-watermark-font-custom" placeholder="${t('ws_watermark_font_placeholder', '폰트명 입력')}" class="hidden flex-1 border border-outline-variant bg-surface-bright text-on-surface rounded-lg p-2.5 font-body-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
                 </div>
-                <input type="text" id="input-watermark-text" value="CONFIDENTIAL" placeholder="워터마크 텍스트 입력" class="w-full border border-outline-variant bg-surface-bright text-on-surface rounded-lg p-2.5 font-body-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary mb-1">
+                <input type="text" id="input-watermark-text" value="CONFIDENTIAL" placeholder="${t('ws_watermark_text_placeholder', '워터마크 텍스트 입력')}" class="w-full border border-outline-variant bg-surface-bright text-on-surface rounded-lg p-2.5 font-body-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary mb-1">
             </div>
 
             <!-- Image Input Area -->
             <div id="wm-image-area" class="mb-4 hidden">
                 <input type="file" id="input-watermark-image" accept="image/png, image/jpeg" class="hidden">
                 <label for="input-watermark-image" class="w-full flex items-center justify-center gap-2 border border-outline-variant bg-surface-bright text-on-surface rounded-lg p-2.5 font-body-sm cursor-pointer hover:bg-surface-container-low transition-colors">
-                    <span class="material-symbols-outlined text-[18px]">add_photo_alternate</span> <span id="wm-image-label">이미지 파일 선택 (PNG/JPG)</span>
+                    <span class="material-symbols-outlined text-[18px]">add_photo_alternate</span> <span id="wm-image-label">${t('ws_watermark_select_img', '이미지 파일 선택 (PNG/JPG)')}</span>
                 </label>
             </div>
 
-            <!-- Common Controls -->
+            <!-- Common Controls (Sliders) -->
             <div class="space-y-4">
-                <div>
-                    <div class="flex justify-between mb-1">
-                        <label class="font-body-sm text-on-surface font-bold text-xs">크기 배율</label>
-                        <span id="wm-val-scale" class="text-xs text-primary font-bold">1.0x</span>
-                    </div>
-                    <input type="range" id="input-wm-scale" min="0.1" max="5.0" step="0.1" value="1.0" class="w-full accent-primary">
-                </div>
-                <div>
-                    <div class="flex justify-between mb-1">
-                        <label class="font-body-sm text-on-surface font-bold text-xs">장평 (가로 폭)</label>
-                        <span id="wm-val-width-ratio" class="text-xs text-primary font-bold">100%</span>
-                    </div>
-                    <input type="range" id="input-wm-width-ratio" min="50" max="150" step="5" value="100" class="w-full accent-primary">
-                </div>
-                <div>
-                    <div class="flex justify-between mb-1">
-                        <label class="font-body-sm text-on-surface font-bold text-xs">회전 각도</label>
-                        <span id="wm-val-rotate" class="text-xs text-primary font-bold">45°</span>
-                    </div>
-                    <input type="range" id="input-wm-rotate" min="-180" max="180" step="5" value="45" class="w-full accent-primary">
-                </div>
-                <div>
-                    <div class="flex justify-between mb-1">
-                        <label class="font-body-sm text-on-surface font-bold text-xs">불투명도</label>
-                        <span id="wm-val-opacity" class="text-xs text-primary font-bold">30%</span>
-                    </div>
-                    <input type="range" id="input-wm-opacity" min="0" max="100" step="5" value="30" class="w-full accent-primary">
-                </div>
+                ${ui.slider({ id: 'input-wm-scale', label: t('ws_watermark_scale', '크기 배율'), valueId: 'wm-val-scale', min: 0.1, max: 5.0, step: 0.1, value: 1.0, displayValue: '1.0x' })}
+                ${ui.slider({ id: 'input-wm-width-ratio', label: t('ws_watermark_width_ratio', '장평 (가로 폭)'), valueId: 'wm-val-width-ratio', min: 50, max: 150, step: 5, value: 100, displayValue: '100%' })}
+                ${ui.slider({ id: 'input-wm-rotate', label: t('ws_watermark_rotate', '회전 각도'), valueId: 'wm-val-rotate', min: -180, max: 180, step: 5, value: 45, displayValue: '45°' })}
+                ${ui.slider({ id: 'input-wm-opacity', label: t('ws_watermark_opacity', '불투명도'), valueId: 'wm-val-opacity', min: 0, max: 100, step: 5, value: 30, displayValue: '30%' })}
             </div>
 
             <div class="mt-6 border-t border-outline-variant pt-4">
                 ${window.wmSharedViewer.getSettingsNavigationHtml()}
             </div>
         </div>
-        <div class="mb-4">
-            <label class="block font-body-sm text-on-surface font-bold mb-1 flex items-center gap-1">
-                <span class="material-symbols-outlined text-[16px] text-primary">save_as</span> 출력 파일명
-            </label>
-            <input type="text" id="input-filename-watermark" placeholder="입력하지 않으면 자동 생성됨" class="w-full border border-outline-variant bg-surface-bright text-on-surface rounded-lg p-2.5 font-body-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
-        </div>
+        ${ui.filenameInput({
+            id: 'input-filename-watermark',
+            placeholder: t('ws_filename_placeholder', '입력하지 않으면 자동 생성됨')
+        })}
     `;
-
-
+    }
 
     const watermarkWorkspace = new PDFDesk.WorkspaceTool({
         id: 'watermark',
         title: '텍스트/이미지 워터마크',
+        titleKey: 'ws_watermark_title',
         executeBtnText: '워터마크 일괄 적용하기',
-        settingsHtml: watermarkSettingsHtml,
+        executeBtnKey: 'ws_watermark_btn',
+        settingsHtml: getWatermarkSettingsHtml,
         hideDefaultGrid: false,
         onActiveItemChanged: (index, workspace) => {
             if (wmState.previewIndex !== index) {
@@ -272,11 +270,12 @@
             
             // Build Preview Canvas HTML
             if (!document.getElementById('wm-preview-container')) {
+                const t = (key, fallback) => PDFDesk.i18n ? PDFDesk.i18n.t(key, fallback) : fallback;
                 customArea.innerHTML = `
                     <div id="wm-preview-container" class="w-full flex justify-between items-end mb-2">
                         <div class="flex-1">
-                            <h3 class="font-headline-sm font-bold text-on-surface text-left">실시간 워터마크 미리보기</h3>
-                            <p class="text-sm text-on-surface-variant text-left mt-1">파일을 선택하고 마우스 드래그로 워터마크 위치를 조정하세요.</p>
+                            <h3 class="font-headline-sm font-bold text-on-surface text-left">${t('ws_watermark_preview_title', '실시간 워터마크 미리보기')}</h3>
+                            <p class="text-sm text-on-surface-variant text-left mt-1">${t('ws_watermark_preview_desc', '파일을 선택하고 마우스 드래그로 워터마크 위치를 조정하세요.')}</p>
                         </div>
                     </div>
                     ${window.wmSharedViewer.getViewerBoardHtml('w-full', 'cursor-move')}
@@ -308,8 +307,9 @@
             
             const headerActions = document.getElementById('settings-header-actions');
             if (headerActions) {
+                const t = (key, fallback) => PDFDesk.i18n ? PDFDesk.i18n.t(key, fallback) : fallback;
                 headerActions.innerHTML = `
-                    <button id="btn-wm-reset" class="w-8 h-8 flex items-center justify-center text-error hover:bg-error/10 transition-colors rounded-lg bg-surface-bright border border-error/30 hover:border-error shadow-sm" title="워터마크 위치/설정 초기화">
+                    <button id="btn-wm-reset" class="w-8 h-8 flex items-center justify-center text-error hover:bg-error/10 transition-colors rounded-lg bg-surface-bright border border-error/30 hover:border-error shadow-sm" title="${t('ws_watermark_reset_title', '워터마크 위치/설정 초기화')}">
                         <span class="material-symbols-outlined text-[18px]">restart_alt</span>
                     </button>
                 `;
@@ -336,9 +336,11 @@
 
 
             selectFont.addEventListener('change', (e) => {
+                wmState.userSelectedFont = true;
+                const isEnCurrent = PDFDesk.i18n && PDFDesk.i18n.getLang() === 'en';
                 if (e.target.value === 'custom') {
                     inputFontCustom.classList.remove('hidden');
-                    wmState.font = inputFontCustom.value || '맑은 고딕';
+                    wmState.font = inputFontCustom.value || (isEnCurrent ? 'Arial' : '맑은 고딕');
                 } else {
                     inputFontCustom.classList.add('hidden');
                     wmState.font = e.target.value;
@@ -353,6 +355,7 @@
 
             inputFontCustom.addEventListener('input', (e) => {
                 if (selectFont.value === 'custom') {
+                    wmState.userSelectedFont = true;
                     wmState.font = e.target.value;
                     updatePreview();
                 }
@@ -402,8 +405,11 @@
                 const newBtnReset = btnReset.cloneNode(true);
                 btnReset.parentNode.replaceChild(newBtnReset, btnReset);
                 newBtnReset.addEventListener('click', () => {
-                    wmState.font = '맑은 고딕';
-                    selectFont.value = '맑은 고딕';
+                    wmState.userSelectedFont = false;
+                    const isEnCurrent = PDFDesk.i18n && PDFDesk.i18n.getLang() === 'en';
+                    const defaultFont = isEnCurrent ? 'Arial' : '맑은 고딕';
+                    wmState.font = defaultFont;
+                    selectFont.value = defaultFont;
                     inputFontCustom.classList.add('hidden');
                     
                     wmState.x = 50;
@@ -428,12 +434,16 @@
             // Old drag logic removed as it's now handled by SharedViewer
 
             // Set initial state
-            // Set initial state
+            const isEn = PDFDesk.i18n && PDFDesk.i18n.getLang() === 'en';
+            if (!wmState.userSelectedFont) {
+                wmState.font = isEn ? 'Arial' : '맑은 고딕';
+            }
+
             const standardFonts = [
+                'Arial', 'Times New Roman', 'Roboto', 'Verdana', 'Tahoma', 'Comic Sans MS', 'Impact',
                 '맑은 고딕', '돋움', '굴림', '바탕', '궁서', 'HY견고딕', 'HY견명조', 'HY헤드라인M', '휴먼둥근헤드라인',
                 'Apple SD 산돌고딕 Neo', '애플고딕', '애플명조',
-                'Noto Sans KR', 'Roboto',
-                'Arial', 'Times New Roman', 'Verdana', 'Tahoma', 'Comic Sans MS', 'Impact'
+                'Noto Sans KR'
             ];
             if (standardFonts.includes(wmState.font)) {
                 selectFont.value = wmState.font;
@@ -446,16 +456,17 @@
             updatePreview();
         },
         onExecute: async (workspace) => {
+            const t = (key, fallback) => PDFDesk.i18n ? PDFDesk.i18n.t(key, fallback) : fallback;
             if (workspace.selectedFiles.length === 0) {
-                alert('파일을 먼저 업로드해 주세요.');
+                alert(t('ws_watermark_alert_nofile', '파일을 먼저 업로드해 주세요.'));
                 return;
             }
             if (wmState.type === 'image' && !wmState.imageFile) {
-                alert('워터마크로 사용할 이미지를 업로드해 주세요.');
+                alert(t('ws_watermark_alert_noimg', '워터마크로 사용할 이미지를 업로드해 주세요.'));
                 return;
             }
             if (wmState.type === 'text' && !wmState.text.trim()) {
-                alert('워터마크 텍스트를 입력해 주세요.');
+                alert(t('ws_watermark_alert_notext', '워터마크 텍스트를 입력해 주세요.'));
                 return;
             }
             
@@ -577,7 +588,9 @@
                 for (let f = 0; f < workspace.selectedFiles.length; f++) {
                     const fileObj = workspace.selectedFiles[f];
                     const arrayBuffer = await fileObj.file.arrayBuffer();
-                    const pdfDoc = await PDFDocument.load(arrayBuffer, { ignoreEncryption: true, throwOnInvalidObject: false });
+                    const pdfDoc = await PDFDesk.Utils.loadPdfSafely(arrayBuffer, {}, (cur, tot, msg) => {
+                        workspace.setProgress(10, `[${f + 1}/${workspace.selectedFiles.length}] ${msg}`);
+                    });
                     totalExpectedPages += pdfDoc.getPageCount();
                     fileObj.tempDoc = pdfDoc;
                 }
@@ -664,37 +677,12 @@
                 workspace.setProgress(90, '최종 파일 생성 중...');
                 const pdfBytes = await mergedPdf.save();
 
-                let outputName = document.getElementById('input-filename-watermark').value.trim();
-                if (!outputName) {
-                    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-                    outputName = `PDFDesk_Watermarked_${dateStr}.pdf`;
-                } else if (!outputName.toLowerCase().endsWith('.pdf')) {
-                    outputName += '.pdf';
-                }
+                const filename = PDFDesk.Utils.buildFilename(document.getElementById('input-filename-watermark').value, 'Watermarked', '.pdf');
+                PDFDesk.Utils.downloadFile(pdfBytes, filename, 'application/pdf');
 
-                const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = outputName;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-
-                workspace.completeProgress('워터마크가 성공적으로 적용되었습니다!');
+                workspace.completeProgress(t('ws_watermark_success', '워터마크가 성공적으로 적용되었습니다!'));
             } catch (error) {
-                console.error('워터마크 오류:', error);
-                let errMsg = '처리 중 오류가 발생했습니다.';
-                if (error.message && (error.message.includes('Expected instance') || error.message.includes('Invalid object'))) {
-                    errMsg = '이 PDF 파일은 내부 구조가 손상되었거나 표준 규격과 맞지 않아 처리할 수 없습니다.\\n크롬 브라우저에서 해당 파일을 열고 "PDF로 인쇄"를 통해 새 파일로 저장한 후 다시 시도해 보세요.';
-                } else if (error.message && error.message.toLowerCase().includes('encrypted')) {
-                    errMsg = '보안(암호)이 설정된 PDF는 처리할 수 없습니다.';
-                } else if (error.message && error.message.includes('JPG나 PNG')) {
-                    errMsg = error.message;
-                }
-                alert(errMsg);
-                workspace.hideProgress();
+                PDFDesk.Utils.handlePdfError(error, workspace);
             }
         }
     });

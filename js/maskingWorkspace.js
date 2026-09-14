@@ -13,6 +13,8 @@ window.PDFDesk = window.PDFDesk || {};
     'use strict';
 
     PDFDesk.initMasking = function () {
+        const ui = PDFDesk.UI;
+        const Utils = PDFDesk.Utils;
 
         let maskState = {
             previewIndex: 0,
@@ -23,7 +25,8 @@ window.PDFDesk = window.PDFDesk || {};
             color: '#ffffff',
             shape: 'rect',
             eraserMode: false,
-            masks: {}, // { fileIndex: { pageIndex: [ {x, y, w, h, color, shape} ] } }
+            lineWidth: 20,
+            masks: {}, // { fileIndex: { pageIndex: [ {x, y, w, h, color, shape, lineWidth} ] } }
             isPanning: false,
             isDrawing: false,
             startX: 0,
@@ -69,6 +72,13 @@ window.PDFDesk = window.PDFDesk || {};
                             const pIdx = maskState.previewPage;
                             if (maskState.masks[fIdx] && maskState.masks[fIdx][pIdx]) {
                                 maskState.masks[fIdx][pIdx] = maskState.masks[fIdx][pIdx].filter(m => {
+                                    if (m.shape === 'highlighter') {
+                                        const minX = Math.min(m.x, m.x + m.w) - 10;
+                                        const maxX = Math.max(m.x, m.x + m.w) + 10;
+                                        const minY = Math.min(m.y, m.y + m.h) - 10;
+                                        const maxY = Math.max(m.y, m.y + m.h) + 10;
+                                        return !(x >= minX && x <= maxX && y >= minY && y <= maxY);
+                                    }
                                     return !(x >= m.x && x <= m.x + m.w && y >= m.y && y <= m.y + m.h);
                                 });
                                 drawMaskOverlay();
@@ -86,28 +96,61 @@ window.PDFDesk = window.PDFDesk || {};
                         const rect = overlay.getBoundingClientRect();
                         const x = ((e.clientX - rect.left) / rect.width) * overlay.width;
                         const y = ((e.clientY - rect.top) / rect.height) * overlay.height;
-                        maskState.tempRect.x = Math.min(maskState.startX, x);
-                        maskState.tempRect.y = Math.min(maskState.startY, y);
-                        maskState.tempRect.w = Math.abs(x - maskState.startX);
-                        maskState.tempRect.h = Math.abs(y - maskState.startY);
+                        
+                        if (maskState.shape === 'highlighter') {
+                            if (e.shiftKey) {
+                                const dx = x - maskState.startX;
+                                const dy = y - maskState.startY;
+                                const distance = Math.sqrt(dx * dx + dy * dy);
+                                const angle = Math.atan2(dy, dx);
+                                const snappedAngle = Math.round((angle * 180 / Math.PI) / 5) * 5;
+                                const snappedAngleRad = snappedAngle * Math.PI / 180;
+                                const newX = maskState.startX + distance * Math.cos(snappedAngleRad);
+                                const newY = maskState.startY + distance * Math.sin(snappedAngleRad);
+                                maskState.tempRect.x = maskState.startX;
+                                maskState.tempRect.y = maskState.startY;
+                                maskState.tempRect.w = newX - maskState.startX;
+                                maskState.tempRect.h = newY - maskState.startY;
+                            } else {
+                                maskState.tempRect.x = maskState.startX;
+                                maskState.tempRect.y = maskState.startY;
+                                maskState.tempRect.w = x - maskState.startX;
+                                maskState.tempRect.h = y - maskState.startY;
+                            }
+                        } else {
+                            maskState.tempRect.x = Math.min(maskState.startX, x);
+                            maskState.tempRect.y = Math.min(maskState.startY, y);
+                            maskState.tempRect.w = Math.abs(x - maskState.startX);
+                            maskState.tempRect.h = Math.abs(y - maskState.startY);
+                        }
                         drawMaskOverlay();
                     }
                 } else if(type === 'mouseup' || type === 'mouseleave') {
                     if (maskState.isDrawing) {
                         maskState.isDrawing = false;
-                        if (maskState.tempRect.w > 5 && maskState.tempRect.h > 5) {
+                        
+                        let isValid = false;
+                        if (maskState.shape === 'highlighter') {
+                            const dist = Math.sqrt(maskState.tempRect.w * maskState.tempRect.w + maskState.tempRect.h * maskState.tempRect.h);
+                            isValid = dist > 5;
+                        } else {
+                            isValid = maskState.tempRect.w > 5 && maskState.tempRect.h > 5;
+                        }
+                        
+                        if (isValid) {
                             const fIdx = maskState.previewIndex;
                             const pIdx = maskState.previewPage;
                             if (!maskState.masks[fIdx]) maskState.masks[fIdx] = {};
                             if (!maskState.masks[fIdx][pIdx]) maskState.masks[fIdx][pIdx] = [];
-                            maskState.masks[fIdx][pIdx].push({
-                                x: maskState.tempRect.x,
-                                y: maskState.tempRect.y,
-                                w: maskState.tempRect.w,
-                                h: maskState.tempRect.h,
-                                color: maskState.color,
-                                shape: maskState.shape
-                            });
+                                maskState.masks[fIdx][pIdx].push({
+                                    x: maskState.tempRect.x,
+                                    y: maskState.tempRect.y,
+                                    w: maskState.tempRect.w,
+                                    h: maskState.tempRect.h,
+                                    color: maskState.color,
+                                    shape: maskState.shape,
+                                    lineWidth: maskState.lineWidth
+                                });
                         }
                         drawMaskOverlay();
                     }
@@ -115,47 +158,60 @@ window.PDFDesk = window.PDFDesk || {};
             }
         });
 
-        const maskingSettingsHtml = `
-            <div class="mb-5 bg-surface-container-lowest border border-outline-variant rounded-lg p-4 shadow-sm">
-                <label class="block font-body-sm text-on-surface font-bold mb-2 flex items-center gap-1">
-                    <span class="material-symbols-outlined text-[16px] text-primary">layers_clear</span> 마스킹 도구
-                </label>
-                <div class="flex gap-2 mb-4">
-                    <label id="label-shape-rect" class="flex-1 flex items-center justify-center gap-1 border border-outline-variant bg-surface-bright text-on-surface rounded-lg py-2.5 px-0 cursor-pointer transition-colors">
-                        <input type="radio" name="mask-shape-radio" value="rect" id="radio-shape-rect" class="hidden" checked>
-                        <span class="material-symbols-outlined text-[18px]">rectangle</span>
-                        <span class="font-bold text-[12px] whitespace-nowrap tracking-tight">사각</span>
+        const getMaskingSettingsHtml = () => {
+            const i18n = PDFDesk.i18n;
+            const t = (k) => i18n ? i18n.t(k) : k;
+            const isEn = i18n && i18n.getLang() === 'en';
+
+            return `
+                <div class="mb-5 bg-surface-container-lowest border border-outline-variant rounded-lg p-4 shadow-sm">
+                    <label class="block font-body-sm text-on-surface font-bold mb-2 flex items-center gap-1">
+                        <span class="material-symbols-outlined text-[16px] text-primary">layers_clear</span> ${t('ws_masking_tool')}
                     </label>
-                    <label id="label-shape-ellipse" class="flex-1 flex items-center justify-center gap-1 border border-outline-variant bg-surface-bright text-on-surface rounded-lg py-2.5 px-0 cursor-pointer transition-colors">
-                        <input type="radio" name="mask-shape-radio" value="ellipse" id="radio-shape-ellipse" class="hidden">
-                        <span class="material-symbols-outlined text-[18px]">circle</span>
-                        <span class="font-bold text-[12px] whitespace-nowrap tracking-tight">원형</span>
-                    </label>
-                    <label id="label-mask-eraser" class="flex-1 flex items-center justify-center gap-1 border border-outline-variant bg-surface-bright text-on-surface rounded-lg py-2.5 px-0 cursor-pointer transition-colors">
-                        <input type="checkbox" id="checkbox-mask-eraser" class="hidden">
-                        <span class="material-symbols-outlined text-[18px]">ink_eraser</span>
-                        <span class="font-bold text-[12px] whitespace-nowrap tracking-tight">지우개</span>
-                    </label>
+                    <div class="grid grid-cols-2 gap-2 mb-4">
+                        <label id="label-shape-rect" class="flex items-center justify-center gap-1.5 border border-outline-variant bg-surface-bright text-on-surface rounded-lg py-2.5 px-2 cursor-pointer transition-colors">
+                            <input type="radio" name="mask-shape-radio" value="rect" id="radio-shape-rect" class="hidden" checked>
+                            <span class="material-symbols-outlined text-[18px]">rectangle</span>
+                            <span class="font-bold text-[12px] whitespace-nowrap tracking-tight">${t('ws_masking_rect')}</span>
+                        </label>
+                        <label id="label-shape-ellipse" class="flex items-center justify-center gap-1.5 border border-outline-variant bg-surface-bright text-on-surface rounded-lg py-2.5 px-2 cursor-pointer transition-colors">
+                            <input type="radio" name="mask-shape-radio" value="ellipse" id="radio-shape-ellipse" class="hidden">
+                            <span class="material-symbols-outlined text-[18px]">circle</span>
+                            <span class="font-bold text-[12px] whitespace-nowrap tracking-tight">${t('ws_masking_circle')}</span>
+                        </label>
+                        <label id="label-shape-highlighter" class="flex items-center justify-center gap-1.5 border border-outline-variant bg-surface-bright text-on-surface rounded-lg py-2.5 px-2 cursor-pointer transition-colors">
+                            <input type="radio" name="mask-shape-radio" value="highlighter" id="radio-shape-highlighter" class="hidden">
+                            <span class="material-symbols-outlined text-[18px]">edit</span>
+                            <span class="font-bold text-[12px] whitespace-nowrap tracking-tight">${t('ws_masking_highlighter')}</span>
+                        </label>
+                        <label id="label-mask-eraser" class="flex items-center justify-center gap-1.5 border border-outline-variant bg-surface-bright text-on-surface rounded-lg py-2.5 px-2 cursor-pointer transition-colors">
+                            <input type="checkbox" id="checkbox-mask-eraser" class="hidden">
+                            <span class="material-symbols-outlined text-[18px]">ink_eraser</span>
+                            <span class="font-bold text-[12px] whitespace-nowrap tracking-tight">${t('ws_masking_eraser')}</span>
+                        </label>
+                    </div>
+
+                    <div class="flex justify-between items-center mb-4 gap-2">
+                        <label class="font-body-sm text-on-surface font-bold flex items-center gap-1 mb-0 flex-shrink-0">
+                            <span class="material-symbols-outlined text-[16px] text-primary">palette</span> ${t('ws_masking_options')}
+                        </label>
+                        <div class="flex items-center gap-2 flex-1 justify-end">
+                            <input type="range" id="input-mask-linewidth" class="w-24 accent-primary" min="5" max="60" value="20" title="${t('ws_masking_stroke_width')}">
+                            <input type="color" id="input-mask-color" class="w-8 h-8 p-0 border border-outline-variant bg-surface-bright rounded cursor-pointer flex-shrink-0" value="#ffffff" title="${t('ws_masking_color')}">
+                        </div>
+                    </div>
+                    
+                    ${window.maskSharedViewer.getSettingsNavigationHtml()}
                 </div>
 
-                <div class="flex justify-between items-center mb-4">
-                    <label class="font-body-sm text-on-surface font-bold flex items-center gap-1 mb-0">
-                        <span class="material-symbols-outlined text-[16px] text-primary">palette</span> 마스킹 색상
-                    </label>
-                    <input type="color" id="input-mask-color" class="w-8 h-8 p-0 border border-outline-variant bg-surface-bright rounded cursor-pointer" value="#ffffff" title="마스킹 색상">
-                </div>
-                
-                ${window.maskSharedViewer.getSettingsNavigationHtml()}
-            </div>
-
-
-            <div class="mb-4">
-                <label class="block font-body-sm text-on-surface font-bold mb-1 flex items-center gap-1">
-                    <span class="material-symbols-outlined text-[16px] text-primary">save_as</span> 출력 파일명
-                </label>
-                <input type="text" id="input-filename-masking" placeholder="입력하지 않으면 자동 생성됨" class="w-full border border-outline-variant bg-surface-bright text-on-surface rounded-lg p-2.5 font-body-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
-            </div>
-        `;
+                ${ui.filenameInput({
+                    id: 'input-filename-masking',
+                    label: t('ws_filename_label'),
+                    icon: 'save_as',
+                    placeholder: t('ws_filename_placeholder')
+                })}
+            `;
+        };
 
         const drawMaskOverlay = () => {
             const overlayCanvas = document.getElementById('mask-overlay-canvas');
@@ -178,7 +234,17 @@ window.PDFDesk = window.PDFDesk || {};
             if (maskState.masks[fIdx] && maskState.masks[fIdx][pIdx]) {
                 maskState.masks[fIdx][pIdx].forEach(m => {
                     ctx.fillStyle = m.color;
-                    if (m.shape === 'ellipse') {
+                    if (m.shape === 'highlighter') {
+                        ctx.globalAlpha = 0.4;
+                        ctx.strokeStyle = m.color;
+                        ctx.lineWidth = m.lineWidth || 20;
+                        ctx.lineCap = 'round';
+                        ctx.beginPath();
+                        ctx.moveTo(m.x, m.y);
+                        ctx.lineTo(m.x + m.w, m.y + m.h);
+                        ctx.stroke();
+                        ctx.globalAlpha = 1.0;
+                    } else if (m.shape === 'ellipse') {
                         ctx.beginPath();
                         ctx.ellipse(m.x + m.w/2, m.y + m.h/2, Math.abs(m.w/2), Math.abs(m.h/2), 0, 0, 2 * Math.PI);
                         ctx.fill();
@@ -194,7 +260,17 @@ window.PDFDesk = window.PDFDesk || {};
 
             if (maskState.isDrawing && !maskState.eraserMode) {
                 ctx.fillStyle = maskState.color;
-                if (maskState.shape === 'ellipse') {
+                if (maskState.shape === 'highlighter') {
+                    ctx.globalAlpha = 0.4;
+                    ctx.strokeStyle = maskState.color;
+                    ctx.lineWidth = maskState.lineWidth;
+                    ctx.lineCap = 'round';
+                    ctx.beginPath();
+                    ctx.moveTo(maskState.tempRect.x, maskState.tempRect.y);
+                    ctx.lineTo(maskState.tempRect.x + maskState.tempRect.w, maskState.tempRect.y + maskState.tempRect.h);
+                    ctx.stroke();
+                    ctx.globalAlpha = 1.0;
+                } else if (maskState.shape === 'ellipse') {
                     ctx.beginPath();
                     ctx.ellipse(maskState.tempRect.x + maskState.tempRect.w/2, maskState.tempRect.y + maskState.tempRect.h/2, Math.abs(maskState.tempRect.w/2), Math.abs(maskState.tempRect.h/2), 0, 0, 2 * Math.PI);
                     ctx.fill();
@@ -210,9 +286,11 @@ window.PDFDesk = window.PDFDesk || {};
 
         const maskingWorkspace = new PDFDesk.WorkspaceTool({
             id: 'masking',
-            title: '마스킹 (Flatten)',
-            executeBtnText: '마스킹 일괄 적용하기',
-            settingsHtml: maskingSettingsHtml,
+            titleKey: 'ws_masking_title',
+            title: '문서 마스킹 (Flatten)',
+            executeBtnKey: 'ws_masking_btn',
+            executeBtnText: '마스킹 문서 내보내기',
+            settingsHtml: getMaskingSettingsHtml,
             hideDefaultGrid: false,
             onRender: (workspace) => {
                 const customArea = document.getElementById(`custom-workspace-masking`);
@@ -259,9 +337,9 @@ window.PDFDesk = window.PDFDesk || {};
                                         <span class="flex items-center gap-1 text-primary font-bold"><span class="material-symbols-outlined text-[14px]">info</span> 단축키 및 조작:</span>
                                         <span><b class="text-on-surface">Ctrl+휠</b>: 돋보기</span>
                                         <span><b class="text-on-surface">가운데 휠 클릭+드래그</b>: 이동</span>
-                                        <span><b class="text-on-surface">좌클릭+드래그</b>: 마스킹 그리기</span>
+                                        <span><b class="text-on-surface">좌클릭+드래그</b>: 마스킹/형광펜 그리기 (Shift: 5도 직선 스냅)</span>
                                         <span><b class="text-on-surface">← / → (방향키)</b>: 페이지 변경</span>
-                                        <span><b class="text-on-surface">R / C / E</b>: 사각 / 원형 / 지우개 도구 변경</span>
+                                        <span><b class="text-on-surface">R / C / H / E</b>: 사각 / 원형 / 형광펜 / 지우개 도구 변경</span>
                                     </div>
                                 </div>
                             </div>
@@ -279,11 +357,14 @@ window.PDFDesk = window.PDFDesk || {};
 
                 const headerActions = document.getElementById('settings-header-actions');
                 if (headerActions) {
-                    headerActions.innerHTML = `
-                        <button id="btn-mask-clear-page" class="w-8 h-8 flex items-center justify-center text-error hover:bg-error/10 transition-colors rounded-lg bg-surface-bright border border-error/30 hover:border-error shadow-sm" title="현재 페이지 마스킹 초기화">
-                            <span class="material-symbols-outlined text-[18px]">restart_alt</span>
-                        </button>
-                    `;
+                    headerActions.innerHTML = ui.button({
+                        id: 'btn-mask-clear-page',
+                        text: '',
+                        icon: 'restart_alt',
+                        variant: 'danger',
+                        classes: '!p-1.5 w-8 h-8 flex items-center justify-center border-error/30 hover:border-error shadow-sm',
+                        attrs: { title: '현재 페이지 마스킹 초기화' }
+                    });
                 }
 
                 const inputColor = document.getElementById('input-mask-color');
@@ -295,6 +376,7 @@ window.PDFDesk = window.PDFDesk || {};
 
                 const labelShapeRect = document.getElementById('label-shape-rect');
                 const labelShapeEllipse = document.getElementById('label-shape-ellipse');
+                const labelShapeHighlighter = document.getElementById('label-shape-highlighter');
                 const labelMaskEraser = document.getElementById('label-mask-eraser');
 
                 if (inputColor) {
@@ -314,22 +396,33 @@ window.PDFDesk = window.PDFDesk || {};
                             labelShapeRect.classList.add('border-outline-variant', 'bg-surface-bright', 'text-on-surface');
                             labelShapeEllipse.classList.remove('bg-primary/10', 'border-primary', 'text-primary');
                             labelShapeEllipse.classList.add('border-outline-variant', 'bg-surface-bright', 'text-on-surface');
+                            labelShapeHighlighter.classList.remove('bg-primary/10', 'border-primary', 'text-primary');
+                            labelShapeHighlighter.classList.add('border-outline-variant', 'bg-surface-bright', 'text-on-surface');
                         } else {
                             labelMaskEraser.classList.remove('bg-error/10', 'border-error');
                             labelMaskEraser.classList.add('border-outline-variant', 'bg-surface-bright', 'text-on-surface');
 
+                            const applyActive = (lbl) => {
+                                lbl.classList.add('bg-primary/10', 'border-primary', 'text-primary');
+                                lbl.classList.remove('border-outline-variant', 'bg-surface-bright', 'text-on-surface');
+                            };
+                            const applyInactive = (lbl) => {
+                                lbl.classList.remove('bg-primary/10', 'border-primary', 'text-primary');
+                                lbl.classList.add('border-outline-variant', 'bg-surface-bright', 'text-on-surface');
+                            };
+
                             if (maskState.shape === 'rect') {
-                                labelShapeRect.classList.add('bg-primary/10', 'border-primary', 'text-primary');
-                                labelShapeRect.classList.remove('border-outline-variant', 'bg-surface-bright', 'text-on-surface');
-                                
-                                labelShapeEllipse.classList.remove('bg-primary/10', 'border-primary', 'text-primary');
-                                labelShapeEllipse.classList.add('border-outline-variant', 'bg-surface-bright', 'text-on-surface');
-                            } else {
-                                labelShapeEllipse.classList.add('bg-primary/10', 'border-primary', 'text-primary');
-                                labelShapeEllipse.classList.remove('border-outline-variant', 'bg-surface-bright', 'text-on-surface');
-                                
-                                labelShapeRect.classList.remove('bg-primary/10', 'border-primary', 'text-primary');
-                                labelShapeRect.classList.add('border-outline-variant', 'bg-surface-bright', 'text-on-surface');
+                                applyActive(labelShapeRect);
+                                applyInactive(labelShapeEllipse);
+                                applyInactive(labelShapeHighlighter);
+                            } else if (maskState.shape === 'ellipse') {
+                                applyInactive(labelShapeRect);
+                                applyActive(labelShapeEllipse);
+                                applyInactive(labelShapeHighlighter);
+                            } else if (maskState.shape === 'highlighter') {
+                                applyInactive(labelShapeRect);
+                                applyInactive(labelShapeEllipse);
+                                applyActive(labelShapeHighlighter);
                             }
                         }
                     }
@@ -356,6 +449,16 @@ window.PDFDesk = window.PDFDesk || {};
                     newRadio.addEventListener('change', (e) => {
                         if (e.target.checked) {
                             maskState.shape = e.target.value;
+                            if (maskState.shape === 'highlighter') {
+                                maskState.color = '#ffff00';
+                                const inputColor = document.getElementById('input-mask-color');
+                                if (inputColor) inputColor.value = '#ffff00';
+                            }
+                            if (maskState.shape === 'highlighter' || maskState.eraserMode) {
+                                document.getElementById('input-mask-linewidth').parentElement.style.opacity = '1';
+                            } else {
+                                document.getElementById('input-mask-linewidth').parentElement.style.opacity = '1'; // keep it visible for consistency
+                            }
                             if (maskState.eraserMode) {
                                 maskState.eraserMode = false;
                             }
@@ -363,6 +466,13 @@ window.PDFDesk = window.PDFDesk || {};
                         }
                     });
                 });
+
+                const inputLineWidth = document.getElementById('input-mask-linewidth');
+                if (inputLineWidth) {
+                    inputLineWidth.addEventListener('input', (e) => {
+                        maskState.lineWidth = parseInt(e.target.value, 10);
+                    });
+                }
 
                 if (chkEraser) {
                     const newChk = chkEraser.cloneNode(true);
@@ -388,6 +498,13 @@ window.PDFDesk = window.PDFDesk || {};
                                     maskState.shape = 'ellipse';
                                     if (maskState.eraserMode) maskState.eraserMode = false;
                                     if (typeof window.updateShapeUI === 'function') window.updateShapeUI();
+                                } else if (e.key === 'h' || e.key === 'H') {
+                                    maskState.shape = 'highlighter';
+                                    maskState.color = '#ffff00';
+                                    const inputColor = document.getElementById('input-mask-color');
+                                    if (inputColor) inputColor.value = '#ffff00';
+                                    if (maskState.eraserMode) maskState.eraserMode = false;
+                                    if (typeof window.updateShapeUI === 'function') window.updateShapeUI();
                                 }
                             }
                         }
@@ -396,7 +513,11 @@ window.PDFDesk = window.PDFDesk || {};
                 }
                 updateShapeUI();
 
-                
+                if (inputColor) {
+                    inputColor.addEventListener('input', (e) => {
+                        maskState.color = e.target.value;
+                    });
+                }
 
                 if (btnClear) {
                     const newClear = btnClear.cloneNode(true);
@@ -445,7 +566,7 @@ window.PDFDesk = window.PDFDesk || {};
                         const arrayBuffer = await fileObj.file.arrayBuffer();
                         const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
                         // Load into pdf-lib for native copying of unmasked pages
-                        const pdfLibDoc = await PDFDocument.load(arrayBuffer.slice(0));
+                        const pdfLibDoc = await PDFDesk.Utils.loadPdfSafely(arrayBuffer.slice(0));
 
                         for (let pIdx = 1; pIdx <= pdfDoc.numPages; pIdx++) {
                             processedPages++;
@@ -480,6 +601,16 @@ window.PDFDesk = window.PDFDesk || {};
                                         ctx.beginPath();
                                         ctx.ellipse(m.x * mapScale + (m.w * mapScale)/2, m.y * mapScale + (m.h * mapScale)/2, Math.abs(m.w * mapScale)/2, Math.abs(m.h * mapScale)/2, 0, 0, 2 * Math.PI);
                                         ctx.fill();
+                                    } else if (m.shape === 'highlighter') {
+                                        ctx.globalAlpha = 0.4;
+                                        ctx.strokeStyle = m.color;
+                                        ctx.lineWidth = (m.lineWidth || 20) * mapScale;
+                                        ctx.lineCap = 'round';
+                                        ctx.beginPath();
+                                        ctx.moveTo(m.x * mapScale, m.y * mapScale);
+                                        ctx.lineTo(m.x * mapScale + m.w * mapScale, m.y * mapScale + m.h * mapScale);
+                                        ctx.stroke();
+                                        ctx.globalAlpha = 1.0;
                                     } else {
                                         ctx.fillRect(m.x * mapScale, m.y * mapScale, m.w * mapScale, m.h * mapScale);
                                     }
@@ -515,24 +646,14 @@ window.PDFDesk = window.PDFDesk || {};
                     
                     workspace.setProgress(100, '완료!');
                     
-                    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    let outName = document.getElementById('input-filename-masking').value || 'Masked_Document';
-                    if (!outName.toLowerCase().endsWith('.pdf')) outName += '.pdf';
-                    a.download = outName;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
+                    let outName = document.getElementById('input-filename-masking')?.value || 'Masked_Document';
+                    outName = Utils.buildFilename(outName, 'pdf');
+                    Utils.downloadFile(pdfBytes, outName, 'application/pdf');
                     
                     workspace.completeProgress('마스킹이 성공적으로 적용되었습니다!');
 
                 } catch (err) {
-                    workspace.hideProgress();
-                    console.error(err);
-                    alert('마스킹 도중 오류가 발생했습니다: ' + err.message);
+                    Utils.handlePdfError(err, workspace, '마스킹 도중 오류가 발생했습니다: ');
                 }
             }
         });

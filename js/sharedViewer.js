@@ -25,15 +25,37 @@
         }
 
         getSettingsNavigationHtml() {
+            const ui = PDFDesk.UI;
+            const t = (k, fb) => (PDFDesk.i18n ? PDFDesk.i18n.t(k, fb) : fb);
+            const prevTitle = t('viewer_nav_prev', '이전 페이지/파일');
+            const nextTitle = t('viewer_nav_next', '다음 페이지/파일');
+            const pageTitle = t('viewer_nav_page', '페이지 이동');
+
+            const prevBtn = ui ? ui.button({
+                id: `btn-${this.prefix}-prev`,
+                icon: 'chevron_left',
+                variant: 'outline',
+                classes: 'flex-1 !py-2 flex justify-center items-center',
+                attrs: { title: prevTitle }
+            }) : `<button id="btn-${this.prefix}-prev" class="flex-1 border border-outline-variant rounded-lg p-2 hover:bg-surface-container-low font-body-sm font-bold text-on-surface transition-colors flex justify-center items-center" title="${prevTitle}"><span class="material-symbols-outlined text-[18px]">chevron_left</span></button>`;
+            
+            const nextBtn = ui ? ui.button({
+                id: `btn-${this.prefix}-next`,
+                icon: 'chevron_right',
+                variant: 'outline',
+                classes: 'flex-1 !py-2 flex justify-center items-center',
+                attrs: { title: nextTitle }
+            }) : `<button id="btn-${this.prefix}-next" class="flex-1 border border-outline-variant rounded-lg p-2 hover:bg-surface-container-low font-body-sm font-bold text-on-surface transition-colors flex justify-center items-center" title="${nextTitle}"><span class="material-symbols-outlined text-[18px]">chevron_right</span></button>`;
+
             return `
                 <div class="mb-4">
                     <label class="block font-body-sm text-on-surface font-bold mb-2 flex items-center gap-1">
-                        <span class="material-symbols-outlined text-[16px] text-primary">find_in_page</span> 페이지 이동
+                        <span class="material-symbols-outlined text-[16px] text-primary">find_in_page</span> ${pageTitle}
                     </label>
                     <div class="flex items-center gap-2 mb-4">
-                        <button id="btn-${this.prefix}-prev" class="flex-1 border border-outline-variant rounded-lg p-2 hover:bg-surface-container-low font-body-sm font-bold text-on-surface transition-colors flex justify-center items-center" title="이전 페이지/파일"><span class="material-symbols-outlined text-[18px]">chevron_left</span></button>
+                        ${prevBtn}
                         <span id="label-${this.prefix}-page" class="font-body-sm font-bold text-center px-2 min-w-[80px]">1 / 1</span>
-                        <button id="btn-${this.prefix}-next" class="flex-1 border border-outline-variant rounded-lg p-2 hover:bg-surface-container-low font-body-sm font-bold text-on-surface transition-colors flex justify-center items-center" title="다음 페이지/파일"><span class="material-symbols-outlined text-[18px]">chevron_right</span></button>
+                        ${nextBtn}
                     </div>
                 </div>
             `;
@@ -41,7 +63,7 @@
 
         getViewerBoardHtml(extraClasses = '', canvasClasses = '') {
             return `
-                <div id="${this.prefix}-preview-board" class="bg-surface-container-low border border-outline-variant rounded-xl overflow-hidden relative hidden shadow-sm focus:outline-none ${extraClasses}" tabindex="0">
+                <div id="${this.prefix}-preview-board" class="bg-surface-container-low border border-outline-variant rounded-xl relative hidden shadow-sm focus:outline-none ${extraClasses}" tabindex="0">
                     <div id="${this.prefix}-canvas-container" class="absolute inset-0 origin-center" style="transform: translate(0px, 0px) scale(1.0);">
                         <canvas id="${this.prefix}-pdf-canvas" class="w-full h-full block"></canvas>
                         <canvas id="${this.prefix}-overlay-canvas" class="absolute inset-0 w-full h-full block ${canvasClasses}"></canvas>
@@ -226,6 +248,61 @@
                     }
                 });
 
+                // 모바일/태블릿 멀티 터치 제스처 (핀치 줌 및 2-핑거 패닝)
+                let touchMode = null;
+                let initialPinchDist = 0;
+                let initialZoom = 1.0;
+                let initialMidX = 0;
+                let initialMidY = 0;
+                let initialPanX = 0;
+                let initialPanY = 0;
+
+                const getTouchDistance = (t1, t2) => Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+                const getTouchCenter = (t1, t2) => ({ x: (t1.clientX + t2.clientX) / 2, y: (t1.clientY + t2.clientY) / 2 });
+
+                board.addEventListener('touchstart', (e) => {
+                    if (e.touches.length === 2) {
+                        touchMode = 'pinch_pan';
+                        initialPinchDist = getTouchDistance(e.touches[0], e.touches[1]);
+                        const center = getTouchCenter(e.touches[0], e.touches[1]);
+                        initialMidX = center.x;
+                        initialMidY = center.y;
+                        initialZoom = this.state.zoom;
+                        initialPanX = this.state.panX;
+                        initialPanY = this.state.panY;
+                        e.preventDefault();
+                    }
+                }, { passive: false });
+
+                board.addEventListener('touchmove', (e) => {
+                    if (touchMode === 'pinch_pan' && e.touches.length === 2) {
+                        e.preventDefault();
+                        const currentDist = getTouchDistance(e.touches[0], e.touches[1]);
+                        const center = getTouchCenter(e.touches[0], e.touches[1]);
+
+                        // 핀치 줌 배율 계산
+                        if (initialPinchDist > 0) {
+                            const scaleMultiplier = currentDist / initialPinchDist;
+                            this.state.zoom = Math.max(0.2, Math.min(initialZoom * scaleMultiplier, 5.0));
+                        }
+
+                        // 2-핑거 캔버스 패닝 이동
+                        const deltaX = center.x - initialMidX;
+                        const deltaY = center.y - initialMidY;
+                        this.state.panX = initialPanX + deltaX;
+                        this.state.panY = initialPanY + deltaY;
+
+                        this.updateTransform();
+                        this.onZoomPan();
+                    }
+                }, { passive: false });
+
+                const endTouch = () => {
+                    touchMode = null;
+                };
+                board.addEventListener('touchend', endTouch);
+                board.addEventListener('touchcancel', endTouch);
+
                 // Keyboard events
                 const onKeyDown = (e) => {
                     if (document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
@@ -250,12 +327,41 @@
                 window[`${this.prefix}KeydownBound`] = true;
             }
 
-            // Mouse events on overlay for custom drawing (pass down to custom handler)
+            // Mouse & Single-Touch events on overlay for custom drawing
             if (overlayCanvas) {
                 overlayCanvas.addEventListener('mousedown', (e) => this.onEvent('mousedown', e));
                 overlayCanvas.addEventListener('mousemove', (e) => this.onEvent('mousemove', e));
                 overlayCanvas.addEventListener('mouseup', (e) => this.onEvent('mouseup', e));
                 overlayCanvas.addEventListener('mouseleave', (e) => this.onEvent('mouseleave', e));
+
+                // 모바일 싱글 터치 드로잉 지원 (마우스 좌표 이벤트 호환 에뮬레이션)
+                const delegateTouchEvent = (type, touchEvent) => {
+                    if (touchEvent.touches.length === 1 || (type === 'mouseup' && touchEvent.changedTouches.length === 1)) {
+                        const touch = touchEvent.touches[0] || touchEvent.changedTouches[0];
+                        const mouseEvt = {
+                            clientX: touch.clientX,
+                            clientY: touch.clientY,
+                            button: 0,
+                            preventDefault: () => touchEvent.preventDefault(),
+                            stopPropagation: () => touchEvent.stopPropagation()
+                        };
+                        this.onEvent(type, mouseEvt);
+                    }
+                };
+
+                overlayCanvas.addEventListener('touchstart', (e) => {
+                    if (e.touches.length === 1) {
+                        delegateTouchEvent('mousedown', e);
+                    }
+                }, { passive: false });
+
+                overlayCanvas.addEventListener('touchmove', (e) => {
+                    if (e.touches.length === 1) {
+                        delegateTouchEvent('mousemove', e);
+                    }
+                }, { passive: false });
+
+                overlayCanvas.addEventListener('touchend', (e) => delegateTouchEvent('mouseup', e));
             }
         }
         
