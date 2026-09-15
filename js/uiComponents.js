@@ -428,17 +428,23 @@ window.PDFDesk = window.PDFDesk || {};
         },
 
         /**
-         * 개인정보처리방침 / 서비스 이용약관 공용 팝업 모달
+         * 개인정보처리방침 / 서비스 이용약관 공용 팝업 모달 (다국어 지원)
          * @param {string} title - 모달 제목
          * @param {string} contentHtml - 모달 본문 HTML
+         * @param {string} [confirmText] - 확인 버튼 라벨 (선택)
          */
-        showLegalModal(title, contentHtml) {
+        showLegalModal(title, contentHtml, confirmText = null) {
             let container = document.getElementById('global-modal-container');
             if (!container) {
                 container = document.createElement('div');
                 container.id = 'global-modal-container';
                 document.body.appendChild(container);
             }
+
+            const isEn = (window.PDFDesk?.i18n?.currentLang === 'en');
+            const closeTooltip = isEn ? 'Close' : '닫기';
+            const defaultConfirm = isEn ? 'Close' : '확인';
+            const btnLabel = confirmText || defaultConfirm;
 
             container.innerHTML = `
                 <div id="legal-modal-backdrop" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
@@ -449,7 +455,7 @@ window.PDFDesk = window.PDFDesk || {};
                                 <span class="material-symbols-outlined text-primary text-[22px]">policy</span>
                                 <span>${title}</span>
                             </h3>
-                            <button id="btn-close-legal-modal" class="w-9 h-9 flex items-center justify-center rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors cursor-pointer" title="닫기">
+                            <button id="btn-close-legal-modal" class="w-9 h-9 flex items-center justify-center rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors cursor-pointer" title="${closeTooltip}">
                                 <span class="material-symbols-outlined text-[20px]">close</span>
                             </button>
                         </div>
@@ -459,7 +465,7 @@ window.PDFDesk = window.PDFDesk || {};
                         </div>
                         <!-- Modal Footer -->
                         <div class="px-6 py-3 border-t border-outline-variant/40 bg-surface-container-low flex justify-end">
-                            <button id="btn-confirm-legal-modal" class="px-5 py-2 rounded-lg bg-primary text-on-primary font-bold hover:bg-primary/90 transition-colors cursor-pointer text-sm">확인</button>
+                            <button id="btn-confirm-legal-modal" class="px-5 py-2 rounded-lg bg-primary text-on-primary font-bold hover:bg-primary/90 transition-colors cursor-pointer text-sm">${btnLabel}</button>
                         </div>
                     </div>
                 </div>
