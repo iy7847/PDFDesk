@@ -10,7 +10,7 @@ window.PDFDesk = window.PDFDesk || {};
 
     // 전역 설정 (애드센스 및 환경 설정)
     window.PDFDesk.Config = window.PDFDesk.Config || {
-        adClient: '', // 운영 시 'ca-pub-XXXXXXXXXXXXXXXX' 입력
+        adClient: 'ca-pub-1161759322819526', // 구글 애드센스 공식 게시자 ID
         isDev: window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
     };
 

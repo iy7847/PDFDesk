@@ -14,6 +14,7 @@
     const DICTIONARY = {
         ko: {
             // 헤더 & 공통
+            nav_install_app: "앱 설치",
             nav_back: "돌아가기",
             nav_start: "시작하기",
             free_badge: "완전 무료",
@@ -256,6 +257,7 @@
         },
         en: {
             // Header & Common
+            nav_install_app: "Install App",
             nav_back: "Back",
             nav_start: "Start",
             free_badge: "100% Free",

@@ -1,0 +1,25 @@
+{
+  "name": "KEP PDF - 안전한 로컬 PDF 솔루션",
+  "short_name": "KEP PDF",
+  "description": "서버 전송 없이 브라우저 메모리에서 안전하게 처리하는 실무용 올인원 PDF 도구",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#0061A4",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "kep_logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "kep_logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

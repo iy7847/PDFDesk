@@ -187,4 +187,43 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `);
     });
+
+    // ----------------------------------------------------
+    // PWA Service Worker 등록 및 설치 프롬프트 바인딩
+    // ----------------------------------------------------
+    if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js')
+                .then((reg) => console.log('KEP PDF Service Worker 등록 완료:', reg.scope))
+                .catch((err) => console.warn('KEP PDF Service Worker 등록 실패:', err));
+        });
+    }
+
+    let deferredPrompt = null;
+    const installBtn = document.getElementById('btn-install-pwa');
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+        // 브라우저 기본 미니 정보 표시줄 방지
+        e.preventDefault();
+        deferredPrompt = e;
+        if (installBtn) {
+            installBtn.classList.remove('hidden');
+            installBtn.classList.add('inline-flex');
+        }
+    });
+
+    installBtn?.addEventListener('click', async () => {
+        if (!deferredPrompt) return;
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+            if (installBtn) installBtn.classList.add('hidden');
+        }
+        deferredPrompt = null;
+    });
+
+    window.addEventListener('appinstalled', () => {
+        if (installBtn) installBtn.classList.add('hidden');
+        deferredPrompt = null;
+    });
 });

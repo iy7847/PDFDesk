@@ -2,4 +2,4 @@
 # 구글 애드센스 승인 후 발급받은 본인의 게시자 ID(pub-xxxxxxxxxxxxxxxx)로 교체해 주세요.
 # 형식: google.com, pub-XXXXXXXXXXXXXXXX, DIRECT, f08c47fec0942fa0
 
-google.com, pub-0000000000000000, DIRECT, f08c47fec0942fa0
+google.com, pub-1161759322819526, DIRECT, f08c47fec0942fa0
